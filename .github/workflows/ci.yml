@@ -1,0 +1,40 @@
+name: CI
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install Dependencies
+        run: |
+          cd ${{ matrix.service }}
+          npm ci
+      - name: Lint
+        run: |
+          cd ${{ matrix.service }}
+          npm run lint
+      - name: Build
+        run: |
+          cd ${{ matrix.service }}
+          npm run build
+      - name: Test
+        run: |
+          cd ${{ matrix.service }}
+          npm test
+      - name: Docker build
+        if: matrix.service == 'backend'
+        run: docker build -t cubit-backend ./backend
+      - name: Docker build
+        if: matrix.service == 'frontend'
+        run: docker build -t cubit-frontend ./frontend

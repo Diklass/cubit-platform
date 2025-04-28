@@ -1,0 +1,33 @@
+// backend/prisma/schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(STUDENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+model Lesson {
+  id        String   @id @default(uuid())
+  title     String
+  modelUrl  String?  // URL загруженного 3D-файла
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
