@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { PrivateRoute } from './auth/PrivateRoute';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { LessonsList } from './pages/LessonsList';
 
 export const App: React.FC = () => (
   <AuthProvider>
@@ -19,7 +20,14 @@ export const App: React.FC = () => (
             </PrivateRoute>
           }
         />
-        {/* добавить другие приватные маршруты так же */}
+        <Route
+          path="/lessons"
+          element={
+            <PrivateRoute>
+              <LessonsList />
+            </PrivateRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   </AuthProvider>
