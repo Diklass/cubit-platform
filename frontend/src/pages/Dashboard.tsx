@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../auth/AuthContext';
 
-export const Dashboard: React.FC = () => {
+const Dashboard: React.FC = () => {
   const { logout } = useAuth();
   return (
     <div style={{ padding: 20 }}>
@@ -11,3 +11,5 @@ export const Dashboard: React.FC = () => {
     </div>
   );
 };
+
+export default Dashboard;

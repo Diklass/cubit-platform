@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
-export const Login: React.FC = () => {
+ const Login: React.FC = () => {
   const [email, setEmail] = useState('test@cubit.local');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -38,3 +38,5 @@ export const Login: React.FC = () => {
     </div>
   );
 };
+
+export default Login;

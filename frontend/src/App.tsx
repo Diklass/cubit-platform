@@ -1,34 +1,86 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './auth/AuthContext';
-import { PrivateRoute } from './auth/PrivateRoute';
-import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
-import { LessonsList } from './pages/LessonsList';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
-export const App: React.FC = () => (
-  <AuthProvider>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-              <Dashboard />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/lessons"
-          element={
-            <PrivateRoute>
-              <LessonsList />
-            </PrivateRoute>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
-  </AuthProvider>
+import { PrivateRoute } from './auth/PrivateRoute';
+import Layout from './components/Layout';
+
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import LessonsList from './pages/LessonsList';
+import RoomJoin from './pages/RoomJoin';
+import RoomPage from './pages/RoomPage';
+import ProfilePage from './pages/ProfilePage';
+
+const App: React.FC = () => (
+  <Routes>
+    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+    <Route path="/login" element={<Login />} />
+
+    <Route
+      path="/dashboard"
+      element={
+        <PrivateRoute>
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </PrivateRoute>
+      }
+    />
+
+    <Route
+      path="/lessons"
+      element={
+        <PrivateRoute>
+          <Layout>
+            <LessonsList />
+          </Layout>
+        </PrivateRoute>
+      }
+    />
+
+    <Route
+      path="/rooms"
+      element={
+        <PrivateRoute>
+          <Layout>
+            <RoomJoin />
+          </Layout>
+        </PrivateRoute>
+      }
+    />
+
+    <Route
+      path="/rooms/:code"
+      element={
+        <PrivateRoute>
+          <Layout>
+            <RoomPage />
+          </Layout>
+        </PrivateRoute>
+      }
+    />
+
+    <Route
+      path="/profile"
+      element={
+        <PrivateRoute>
+          <Layout>
+            <ProfilePage />
+          </Layout>
+        </PrivateRoute>
+      }
+    />
+
+    <Route
+      path="*"
+      element={
+        <Layout>
+          <p className="p-4">Страница не найдена</p>
+        </Layout>
+      }
+    />
+  </Routes>
 );
+
+export default App;
