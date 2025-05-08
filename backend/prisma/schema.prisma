@@ -1,21 +1,10 @@
-// backend/prisma/schema.prisma
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(STUDENT)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -24,28 +13,61 @@ enum Role {
   STUDENT
 }
 
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Уроки, которые ведёт преподаватель
+  lessons     Lesson[]     @relation("TeacherLessons")
+  // Комнаты, которые он создал
+  roomsOwned  Room[]       @relation("OwnerRooms")
+  // Членство в комнатах
+  memberships RoomMember[]
+}
+
 model Lesson {
-  id        String   @id @default(uuid())
-  title     String
-  modelUrl  String?  // URL загруженного 3D-файла
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  title      String
+  content    String?
+  modelUrl   String?
+  teacherId  String
+  teacher    User     @relation("TeacherLessons", fields: [teacherId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Room {
-  id        String    @id @default(uuid())
-  code      String    @unique @default(uuid())
-  title     String?
-  messages  Message[]
-  createdAt DateTime  @default(now())
+  id       String       @id @default(uuid())
+  code     String       @unique
+  title    String?
+  ownerId  String
+  owner    User         @relation("OwnerRooms", fields: [ownerId], references: [id])
+  messages Message[]
+  members  RoomMember[]
+}
+
+model RoomMember {
+  id     String @id @default(uuid())
+  roomId String
+  userId String
+
+  room Room @relation(fields: [roomId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, userId])
 }
 
 model Message {
-  id        String    @id @default(uuid())
-  room      Room      @relation(fields: [roomId], references: [id])
-  roomId    String
-  author    String?   // либо userId, либо null для гостей
-  text      String?
+  id            String   @id @default(uuid())
+  roomId        String
+  author        String?
+  text          String?
   attachmentUrl String?
-  createdAt DateTime  @default(now())
+  createdAt     DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id])
 }

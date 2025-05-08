@@ -18,7 +18,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "seed:users": "ts-node scripts/seed-users.ts"
+    "seed:users": "ts-node scripts/seed-users.ts",
+    "seed": "ts-node scripts/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -51,7 +52,7 @@
     "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",
     "@types/multer": "^1.4.12",
-    "@types/node": "^20.17.43",
+    "@types/node": "^20.17.45",
     "@types/passport": "^1.0.17",
     "@types/passport-jwt": "^4.0.1",
     "@types/socket.io": "^3.0.1",
@@ -77,6 +78,4 @@
     "migrate": "prisma migrate dev",
     "generate": "prisma generate"
   }
-
-  
 }
