@@ -62,4 +62,22 @@ export class RoomsGateway
 
     return msg;
   }
+
+  @SubscribeMessage('editMessage')
+async handleEdit(
+  @MessageBody() payload: { roomCode: string; messageId: string; text: string },
+  @ConnectedSocket() client: Socket
+) {
+  const updated = await this.roomsService.updateMessage(payload.messageId, payload.text);
+  client.broadcast.to(payload.roomCode).emit('messageEdited', updated);
+}
+
+@SubscribeMessage('deleteMessage')
+async handleDelete(
+  @MessageBody() payload: { roomCode: string; messageId: string },
+  @ConnectedSocket() client: Socket,
+) {
+  await this.roomsService.deleteMessage(payload.messageId);
+  client.broadcast.to(payload.roomCode).emit('messageDeleted', payload.messageId);
+}
 }

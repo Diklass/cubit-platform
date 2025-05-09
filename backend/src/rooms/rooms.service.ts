@@ -45,10 +45,14 @@ export class RoomsService {
   /**
    * Получаем комнату вместе с её сообщениями
    */
-  async findByCode(code: string): Promise<Room & { messages: Message[] }> {
+  async findByCode(code: string) {
     const room = await this.prisma.room.findUnique({
       where: { code },
-      include: { messages: true },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' }, 
+        },
+      },
     });
     if (!room) throw new NotFoundException('Комната не найдена');
     return room;
@@ -95,6 +99,21 @@ export class RoomsService {
       where: { roomId_userId: { roomId, userId } },
       create: { roomId, userId },
       update: {},
+    });
+  }
+
+   // Удаление
+   async deleteMessage(messageId: string): Promise<{ count: number }> {
+    return this.prisma.message.deleteMany({
+      where: { id: messageId },
+    });
+  }
+
+  // Обновление текста
+  async updateMessage(messageId: string, newText: string) {
+    return this.prisma.message.update({
+      where: { id: messageId },
+      data: { text: newText },
     });
   }
 }
