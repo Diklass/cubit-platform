@@ -1,83 +1,48 @@
+// src/rooms/rooms.gateway.ts
 import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
-  MessageBody,
-  ConnectedSocket,
   OnGatewayInit,
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { RoomsService } from './rooms.service';
 
 @WebSocketGateway({
   namespace: '/rooms',
-  cors: {
-    origin: '*',           // разрешаем фронтенду подключаться
-  },
+  cors: { origin: '*' },
 })
 export class RoomsGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
-  constructor(private readonly roomsService: RoomsService) {}
-
-  afterInit(server: Server) {
+  afterInit() {
     console.log('🛰 RoomsGateway initialized');
   }
-
   handleConnection(client: Socket) {
     console.log(`🛰 Client connected: ${client.id}`);
   }
-
   handleDisconnect(client: Socket) {
     console.log(`🛰 Client disconnected: ${client.id}`);
   }
 
   @SubscribeMessage('join')
-  handleJoin(
-    @MessageBody() roomCode: string,
-    @ConnectedSocket() client: Socket,
-  ) {
+  handleJoin(client: Socket, roomCode: string) {
     client.join(roomCode);
     console.log(`🛰 ${client.id} joined room ${roomCode}`);
   }
 
-  @SubscribeMessage('message')
-  async handleMessage(
-    @MessageBody() payload: { roomCode: string; author: string; text: string; attachmentUrl?: string },
-    @ConnectedSocket() client: Socket,
-  ) {
-    const room = await this.roomsService.findByCode(payload.roomCode);
-    const msg = await this.roomsService.addMessage(
-      room.id,
-      payload.author,
-      payload.text,
-      payload.attachmentUrl,
-    );
-
-    // broadcast — только остальным
-    client.broadcast.to(payload.roomCode).emit('newMessage', msg);
-
-    return msg;
+  @SubscribeMessage('editMessage')
+  handleEdit(client: Socket, payload: { roomCode: string; messageId: string; text: string }) {
+    this.server.to(payload.roomCode).emit('messageEdited', {
+      id: payload.messageId,
+      text: payload.text,
+    });
   }
 
-  @SubscribeMessage('editMessage')
-async handleEdit(
-  @MessageBody() payload: { roomCode: string; messageId: string; text: string },
-  @ConnectedSocket() client: Socket
-) {
-  const updated = await this.roomsService.updateMessage(payload.messageId, payload.text);
-  client.broadcast.to(payload.roomCode).emit('messageEdited', updated);
-}
-
-@SubscribeMessage('deleteMessage')
-async handleDelete(
-  @MessageBody() payload: { roomCode: string; messageId: string },
-  @ConnectedSocket() client: Socket,
-) {
-  await this.roomsService.deleteMessage(payload.messageId);
-  client.broadcast.to(payload.roomCode).emit('messageDeleted', payload.messageId);
-}
+  @SubscribeMessage('deleteMessage')
+  handleDelete(client: Socket, payload: { roomCode: string; messageId: string }) {
+    this.server.to(payload.roomCode).emit('messageDeleted', payload.messageId);
+  }
 }
