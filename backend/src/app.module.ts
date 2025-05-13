@@ -11,6 +11,7 @@ import { LessonsModule } from './lessons/lessons.module';
 import { RoomsModule } from './rooms/rooms.module';
 
 import { RolesGuard } from './auth/roles.guard';
+import { FilesController } from './files/files.controller';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { RolesGuard } from './auth/roles.guard';
     LessonsModule,
     RoomsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, FilesController,], 
   providers: [
     AppService,                              // ← добавляем AppService
   ],
