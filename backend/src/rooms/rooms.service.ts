@@ -86,8 +86,14 @@ export class RoomsService {
     text?: string,
     attachmentUrl?: string,
   ): Promise<Message> {
+    console.log(author)
     return this.prisma.message.create({
-      data: { roomId, author, text, attachmentUrl },
+      data: {
+      room: { connect: { id: roomId } },
+      author: author ? { connect: { id: author } } : undefined,
+      text,
+      attachmentUrl,
+    },
     });
   }
 
@@ -116,4 +122,47 @@ export class RoomsService {
       data: { text: newText },
     });
   }
+
+  // Получить все сессии чатов для преподавателя
+async listChatSessionsForTeacher(code: string, teacherId: string) {
+  const room = await this.findByCode(code);
+  return this.prisma.chatSession.findMany({
+    where: {
+      roomId: room.id,
+      teacherId,
+    },
+    include: {
+      student: true,
+    },
+  });
+}
+
+// Получить или создать сессию для ученика
+async getOrCreateSessionForStudent(code: string, studentId: string) {
+  const room = await this.findByCode(code);
+
+  // ищем преподавателя — владельца комнаты
+  const teacherId = room.ownerId;
+
+  let session = await this.prisma.chatSession.findFirst({
+    where: {
+      roomId: room.id,
+      studentId,
+      teacherId,
+    },
+  });
+
+  if (!session) {
+    session = await this.prisma.chatSession.create({
+      data: {
+        roomId: room.id,
+        studentId,
+        teacherId,
+      },
+    });
+  }
+
+  return session;
+}
+
 }

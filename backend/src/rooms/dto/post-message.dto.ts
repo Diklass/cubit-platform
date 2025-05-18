@@ -3,7 +3,7 @@ import { IsOptional, IsString } from 'class-validator';
 export class PostMessageDto {
   @IsOptional()
   @IsString()
-  author?: string;
+  authorId?: string; // <-- корректное имя
 
   @IsOptional()
   @IsString()

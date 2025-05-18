@@ -27,27 +27,34 @@ model User {
   roomsOwned  Room[]       @relation("OwnerRooms")
   // Членство в комнатах
   memberships RoomMember[]
+
+  messagesAuthored Message[] @relation("UserMessages")
+
+  chatSessionsAsStudent ChatSession[] @relation("ChatSessionStudent")
+  chatSessionsAsTeacher ChatSession[] @relation("ChatSessionTeacher")
 }
 
 model Lesson {
-  id         String   @id @default(uuid())
-  title      String
-  content    String?
-  modelUrl   String?
-  teacherId  String
-  teacher    User     @relation("TeacherLessons", fields: [teacherId], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(uuid())
+  title     String
+  content   String?
+  modelUrl  String?
+  teacherId String
+  teacher   User     @relation("TeacherLessons", fields: [teacherId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Room {
-  id       String       @id @default(uuid())
-  code     String       @unique
-  title    String?
-  ownerId  String
-  owner    User         @relation("OwnerRooms", fields: [ownerId], references: [id])
-  messages Message[]
-  members  RoomMember[]
+  id      String  @id @default(uuid())
+  code    String  @unique
+  title   String?
+  ownerId String
+  owner   User    @relation("OwnerRooms", fields: [ownerId], references: [id])
+
+  messages     Message[]
+  members      RoomMember[]
+  chatSessions ChatSession[]
 }
 
 model RoomMember {
@@ -63,10 +70,27 @@ model RoomMember {
 
 model Message {
   id            String   @id @default(uuid())
-  roomId        String
-  author        String?
-  text          String
+  authorId      String?
+  text          String?
   attachmentUrl String?
   createdAt     DateTime @default(now())
-  room          Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId        String?
+  chatSessionId String?
+
+  room        Room?        @relation(fields: [roomId], references: [id])
+  chatSession ChatSession? @relation(fields: [chatSessionId], references: [id])
+  author      User?        @relation("UserMessages", fields: [authorId], references: [id])
+}
+
+model ChatSession {
+  id        String   @id @default(uuid())
+  roomId    String
+  studentId String
+  teacherId String
+  createdAt DateTime @default(now())
+
+  room     Room      @relation(fields: [roomId], references: [id])
+  student  User      @relation("ChatSessionStudent", fields: [studentId], references: [id])
+  teacher  User      @relation("ChatSessionTeacher", fields: [teacherId], references: [id])
+  messages Message[]
 }

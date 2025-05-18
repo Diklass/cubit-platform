@@ -12,6 +12,7 @@ import { RoomsModule } from './rooms/rooms.module';
 
 import { RolesGuard } from './auth/roles.guard';
 import { FilesController } from './files/files.controller';
+import { ChatsModule } from './chats/chats.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { FilesController } from './files/files.controller';
     AuthModule,
     LessonsModule,
     RoomsModule,
+    ChatsModule,
   ],
   controllers: [AppController, FilesController,], 
   providers: [

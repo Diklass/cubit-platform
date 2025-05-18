@@ -101,7 +101,7 @@ export class RoomsController {
     const attachmentUrl = file ? `/uploads/${file.filename}` : undefined;
     const msg = await this.rooms.addMessage(
       room.id,
-      dto.author ?? req.user.email,
+      dto.authorId ?? req.user.userId,
       dto.text,
       attachmentUrl,
     );
@@ -157,4 +157,15 @@ export class RoomsController {
       }
     });
   }
+
+  @UseGuards(JwtAuthGuard)
+@Get(':code/chats')
+async getChats(@Req() req, @Param('code') code: string) {
+  const { userId, role } = req.user;
+  if (role === 'STUDENT') {
+    return this.rooms.getOrCreateSessionForStudent(code, userId);
+  } else {
+    return this.rooms.listChatSessionsForTeacher(code, userId);
+  }
+}
 }
