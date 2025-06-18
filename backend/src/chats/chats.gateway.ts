@@ -5,10 +5,12 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
+import { ChatsService } from './chats.service';
 
 @Injectable()
 @WebSocketGateway({
@@ -16,10 +18,14 @@ import { Injectable } from '@nestjs/common';
   cors: { origin: '*' },
 })
 export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  [x: string]: any;
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+  private readonly prisma: PrismaService,
+  private readonly chatsService: ChatsService, 
+) {}
 
   handleConnection(client: Socket) {
     const namespace = client.nsp.name; // /chats/abc123
@@ -32,36 +38,37 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('joinSession')
-  handleJoin(client: Socket, @MessageBody() sessionId: string) {
+  handleJoin(@MessageBody() sessionId: string, @ConnectedSocket() client: Socket) {
     client.join(sessionId);
-    console.log(`Client joined session: ${sessionId}`);
+    console.log(`[WS] Client joined session ${sessionId}`);
   }
 
   @SubscribeMessage('chatMessage')
-  async handleMessage(
-    client: Socket,
-    @MessageBody()
-    payload: {
-      sessionId: string;
-      text: string;
-      authorId: string;
-    },
-  ) {
-    const { sessionId, text, authorId } = payload;
+async handleMessage(
+  client: Socket,
+  @MessageBody()
+  payload: {
+    sessionId: string;
+    text: string;
+    authorId: string;
+  },
+) {
+  const { sessionId, text, authorId } = payload;
 
-    // Запись в БД
-    const message = await this.prisma.message.create({
-      data: {
-        text,
-        chatSession: { connect: { id: sessionId } },
-        author: { connect: { id: authorId } },
-      },
-      include: { author: true },
-    });
+  const message = await this.chatsService.sendMessage(
+    sessionId,
+    text,
+    null,
+    { id: authorId }  // имитируем user из JWT
+  );
 
-    // Рассылка в сессию
-    this.server.to(sessionId).emit('chatMessage', message);
-  }
+  const enriched = await this.prisma.message.findUnique({
+    where: { id: message.id },
+    include: { author: true },
+  });
+
+  this.server.to(sessionId).emit('chatMessage', enriched);
+}
 
   @SubscribeMessage('chatEdited')
   async handleEdit(

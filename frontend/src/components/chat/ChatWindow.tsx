@@ -27,9 +27,14 @@ export function ChatWindow({ sessionId }: { sessionId: string }) {
     if (!sessionId) return;
 
     // Подгружаем историю сообщений
-    api.get<{ messages: Message[] }>(`/chats/${sessionId}/messages`)
-      .then(res => setMessages(res.data.messages.reverse()))
-      .catch(console.error);
+      api.get<Message[]>(`/chats/${sessionId}/messages`)
+        .then(res => {
+          setMessages(res.data); // сообщения уже отсортированы в сервисе
+        })
+        .catch(err => {
+          console.error('Ошибка при получении сообщений:', err);
+          setMessages([]);
+        });
 
     // Подключаемся к WS
     socket = io(`http://localhost:3001/chats/${sessionId}`, {
@@ -101,7 +106,9 @@ export function ChatWindow({ sessionId }: { sessionId: string }) {
     );
   };
 
+ useEffect(() => {
   console.log('Session ID:', sessionId);
+}, [sessionId]);
 
   return (
     <div className="flex flex-col h-full">

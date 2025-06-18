@@ -46,25 +46,26 @@ export class ChatsService {
   }
 
 async getMessages(sessionId: string, user) {
-  console.log('Получение сообщений для сессии:', sessionId);
-
   const session = await this.prisma.chatSession.findUnique({
     where: { id: sessionId },
   });
+  if (!session) throw new NotFoundException('Сессия не найдена');
 
-  if (!session) {
-    console.warn('Сессия не найдена:', sessionId);
-    throw new NotFoundException('Сессия не найдена');
-  }
+  console.log('[🔐 Доступ к сессии]', {
+    userId: user.id,
+    studentId: session.studentId,
+    teacherId: session.teacherId,
+  });
 
   if (user.id !== session.studentId && user.id !== session.teacherId) {
     throw new ForbiddenException('Нет доступа к этой сессии');
   }
 
-  return this.prisma.message.findMany({
-    where: { chatSessionId: sessionId },
-    orderBy: { createdAt: 'desc' },
-  });
+return this.prisma.message.findMany({
+  where: { chatSessionId: sessionId },
+  orderBy: { createdAt: 'asc' },
+  include: { author: true },
+});
 }
   
 

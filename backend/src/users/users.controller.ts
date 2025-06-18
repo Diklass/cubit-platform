@@ -9,11 +9,11 @@ export class UsersController {
   // GET /users/me — вернёт { id, email, role, createdAt, updatedAt }
   @UseGuards(JwtAuthGuard)
   @Get('me')
+  @UseGuards(JwtAuthGuard)
   async getProfile(@Req() req: any) {
-    // PassportStrategy положит в req.user объект { userId, email, role }
-    const { userId } = req.user;
-    const user = await this.users.findById(userId);
-    // убираем passwordHash
+     console.log('[req.user]', req.user);
+    const { id } = req.user;  // ← убедись, что здесь id, а не userId
+    const user = await this.users.findById(id);  // ← сюда передаётся undefined
     const { passwordHash, ...safe } = user;
     return safe;
   }

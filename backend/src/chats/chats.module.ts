@@ -7,5 +7,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 @Module({
   controllers: [ChatsController],
   providers: [ChatsService, ChatsGateway, PrismaService],
+  exports: [ChatsService],
 })
 export class ChatsModule {}
