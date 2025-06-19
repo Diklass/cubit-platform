@@ -1,3 +1,4 @@
+// src/components/chat/ChatWindow.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import api from '../../api';
@@ -14,57 +15,71 @@ type Message = {
   createdAt: string;
 };
 
-let socket: Socket;
+interface ChatWindowProps {
+  sessionId: string;
+  setUnreadCounts: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+}
 
-export function ChatWindow({ sessionId }: { sessionId: string }) {
+export function ChatWindow({
+  sessionId,
+  setUnreadCounts,
+}: ChatWindowProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Инициализируем реф с null, а не без аргумента
+  const socketRef = useRef<Socket | null>(null);
+
+  // Сброс счётчика при монтировании чата
+  useEffect(() => {
+    if (!sessionId) return;
+    setUnreadCounts(prev => ({ ...prev, [sessionId]: 0 }));
+  }, [sessionId, setUnreadCounts]);
 
   useEffect(() => {
     if (!sessionId) return;
 
-    // Подгружаем историю сообщений
-      api.get<Message[]>(`/chats/${sessionId}/messages`)
-        .then(res => {
-          setMessages(res.data); // сообщения уже отсортированы в сервисе
-        })
-        .catch(err => {
-          console.error('Ошибка при получении сообщений:', err);
-          setMessages([]);
-        });
+    // 1) Загружаем историю
+    api
+      .get<Message[]>(`/chats/${sessionId}/messages`)
+      .then(res => setMessages(res.data))
+      .catch(err => {
+        console.error('Ошибка при получении сообщений:', err);
+        setMessages([]);
+      });
 
-    // Подключаемся к WS
-    socket = io(`http://localhost:3001/chats/${sessionId}`, {
+    // 2) Подключаемся по WS
+    const socket = io(`http://localhost:3001/chats/${sessionId}`, {
       transports: ['websocket'],
     });
+    socketRef.current = socket;
 
     socket.emit('joinSession', sessionId);
 
-    socket.on('chatMessage', (msg: Message) => {
+    socket.on('chatMessage', msg => {
       setMessages(prev => [...prev, msg]);
     });
-
-    socket.on('chatEdited', (msg: Message) => {
-      setMessages(prev => prev.map(m => m.id === msg.id ? msg : m));
+    socket.on('chatEdited', msg => {
+      setMessages(prev => prev.map(m => (m.id === msg.id ? msg : m)));
     });
-
-    socket.on('chatDeleted', (id: string) => {
+    socket.on('chatDeleted', id => {
       setMessages(prev => prev.filter(m => m.id !== id));
     });
 
     return () => {
       socket.disconnect();
+      socketRef.current = null;
     };
   }, [sessionId]);
 
+  // Прокрутка вниз
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const send = async (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!text && !file) return;
 
@@ -72,10 +87,14 @@ export function ChatWindow({ sessionId }: { sessionId: string }) {
       const form = new FormData();
       form.append('text', text);
       form.append('file', file);
-      await api.post(`/chats/${sessionId}/messages`, form);
+      try {
+        await api.post(`/chats/${sessionId}/messages`, form);
+      } catch (err) {
+        console.error('Ошибка отправки файла:', err);
+      }
       setFile(null);
     } else {
-      socket.emit('chatMessage', {
+      socketRef.current?.emit('chatMessage', {
         sessionId,
         text,
         authorId: user?.id,
@@ -85,30 +104,39 @@ export function ChatWindow({ sessionId }: { sessionId: string }) {
     setText('');
   };
 
-  const quillModules = {
-    toolbar: [['bold', 'italic'], ['link'], ['clean']],
-  };
+  const quillModules = { toolbar: [['bold', 'italic'], ['link'], ['clean']] };
 
   const renderAttachment = (url: string) => {
-    const name = decodeURIComponent(url.split('-').slice(1).join('-'));
-    const ext = name.split('.').pop()?.toLowerCase();
-    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext || '');
-    const fullUrl = `http://localhost:3001/rooms/files/${url}`;
+    const decoded = decodeURIComponent(url);
+    const name = decoded.split('-').slice(1).join('-');
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    const fullUrl = `http://localhost:3001/rooms/files/${encodeURIComponent(
+      url
+    )}`;
+    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
 
-    return isImage ? (
-      <a href={fullUrl} target="_blank" rel="noreferrer">
-        <img src={fullUrl} alt={name} className="max-h-48 mt-2 rounded border" />
-      </a>
-    ) : (
-      <a href={fullUrl} download className="text-blue-600 mt-2 block hover:underline">
+    if (isImage) {
+      return (
+        <a key={fullUrl} href={fullUrl} target="_blank" rel="noreferrer">
+          <img
+            src={fullUrl}
+            alt={name}
+            className="max-h-48 mt-2 rounded border"
+          />
+        </a>
+      );
+    }
+    return (
+      <a
+        key={fullUrl}
+        href={fullUrl}
+        download={name}
+        className="text-blue-600 mt-2 block hover:underline"
+      >
         📄 {name}
       </a>
     );
   };
-
- useEffect(() => {
-  console.log('Session ID:', sessionId);
-}, [sessionId]);
 
   return (
     <div className="flex flex-col h-full">
@@ -116,7 +144,8 @@ export function ChatWindow({ sessionId }: { sessionId: string }) {
         {messages.map(m => (
           <div key={m.id} className="bg-white p-3 rounded shadow-sm">
             <div className="text-sm text-gray-500 mb-1">
-              {m.author?.email ?? 'Гость'} — {new Date(m.createdAt).toLocaleString()}
+              {m.author?.email ?? 'Гость'} —{' '}
+              {new Date(m.createdAt).toLocaleString()}
             </div>
             {m.text && (
               <div
@@ -130,14 +159,17 @@ export function ChatWindow({ sessionId }: { sessionId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={send} className="bg-white border-t p-4 flex items-center space-x-2">
+      <form
+        onSubmit={handleSend}
+        className="bg-white border-t p-4 flex items-center space-x-2"
+      >
         <ReactQuill
           theme="snow"
           value={text}
           onChange={setText}
           modules={quillModules}
-          className="flex-1 h-24"
           placeholder="Введите сообщение..."
+          className="flex-1 h-24"
         />
         <input
           type="file"
