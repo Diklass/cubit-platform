@@ -3,8 +3,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaClient, Prisma, Room, RoomMember, Message } from '@prisma/client';
 import { customAlphabet } from 'nanoid';
 import { Express } from 'express';
-import { writeFileSync } from 'fs';
-import { extname } from 'path';
 import { v4 as uuid } from 'uuid';
 
 const nanoid = customAlphabet(
@@ -49,18 +47,22 @@ export class RoomsService {
   /**
    * Получаем комнату вместе с её сообщениями
    */
-  async findByCode(code: string) {
-    const room = await this.prisma.room.findUnique({
-      where: { code },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'desc' }, 
+ async findByCode(code: string) {
+  const room = await this.prisma.room.findUnique({
+    where: { code },
+    include: {
+      messages: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          author: true,
+          attachments: true,
         },
       },
-    });
-    if (!room) throw new NotFoundException('Комната не найдена');
-    return room;
-  }
+    },
+  });
+  if (!room) throw new NotFoundException('Комната не найдена');
+  return room;
+}
 
   /**
    * Список комнат для пользователя:
@@ -84,29 +86,32 @@ export class RoomsService {
   /**
    * Добавление сообщения в комнату
    */
-  async addMessage(
-    roomId: string,
-    author: string | null,
-    text?: string,
-    files: Express.Multer.File[] = [],
-  ): Promise<Message> {
-    // сохраняем файлы и готовим данные вложений
-    const attachmentsData = files.map(file => {
-      const fileName = `${uuid()}-${encodeURIComponent(file.originalname)}`;
-      writeFileSync(`uploads/${fileName}`, file.buffer);
-      return { url: fileName };
-    });
+    async addMessage(
+      roomId: string,
+      author: string | null,
+      text?: string,
+      files: Express.Multer.File[] = [],
+    ): Promise<Message> {
+      // multer уже сохранил файлы, собираем их имена
+      const attachmentsData = files.map(file => ({
+        url: file.filename,
+      }));
 
-    return this.prisma.message.create({
-      data: {
-        room:        { connect: { id: roomId } },
-        author:      author ? { connect: { id: author } } : undefined,
-        text:        text?.trim() || '',
-        attachments: files.length ? { create: attachmentsData } : undefined,
-      },
-      include: { attachments: true },
-    });
-  }
+      return this.prisma.message.create({
+        data: {
+          room:        { connect: { id: roomId } },
+          author:      author ? { connect: { id: author } } : undefined,
+          text:        text?.trim() || '',
+          attachments: attachmentsData.length
+            ? { create: attachmentsData }
+            : undefined,
+        },
+        include: {
+          attachments: true,
+          author:      true,    // ← теперь Prisma вернёт и автора
+        },
+      });
+    }
 
   /**
    * При входе студента: отмечаем его членство
@@ -121,10 +126,15 @@ export class RoomsService {
 
    // Удаление
    async deleteMessage(messageId: string): Promise<{ count: number }> {
-    return this.prisma.message.deleteMany({
-      where: { id: messageId },
-    });
-  }
+  // 1) убираем все вложения
+  await this.prisma.attachment.deleteMany({
+    where: { messageId },
+  });
+  // 2) теперь удаляем само сообщение
+  return this.prisma.message.deleteMany({
+    where: { id: messageId },
+  });
+}
 
   // Обновление текста
   async updateMessage(messageId: string, newText: string) {
@@ -176,4 +186,44 @@ async getOrCreateSessionForStudent(code: string, studentId: string) {
   return session;
 }
 
+ async updateMessageWithAttachments(
+    messageId: string,
+    text: string,
+    removeAttachmentIds: string[] = [],
+    newFiles: Express.Multer.File[] = [],
+  ): Promise<Message> {
+    // 1) убедимся, что такое сообщение есть
+    const existing = await this.prisma.message.findUnique({ where: { id: messageId } });
+    if (!existing) throw new NotFoundException('Сообщение не найдено');
+
+    // 2) удаляем отмеченные вложения
+    if (removeAttachmentIds.length) {
+      await this.prisma.attachment.deleteMany({
+        where: { id: { in: removeAttachmentIds } },
+      });
+    }
+
+    // 3) добавляем новые файлы (multer уже сохранил их на диск)
+    for (const file of newFiles) {
+      await this.prisma.attachment.create({
+        data: {
+          url: file.filename,
+          messageId,
+        },
+      });
+    }
+
+    // 4) обновляем текст и подтягиваем автора + оставшиеся вложения
+    const updated = await this.prisma.message.update({
+      where: { id: messageId },
+      data: { text: text.trim() },
+      include: {
+        author: true,
+        attachments: true,
+      },
+    });
+
+    return updated;
+  }
 }
+

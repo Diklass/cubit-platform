@@ -13,6 +13,8 @@ import {
   UseGuards,
   Req,
   Res,
+  DefaultValuePipe,
+  ParseArrayPipe,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -27,6 +29,9 @@ import { CreateRoomDto } from './dto/create-room.dto';
 import { PostMessageDto } from './dto/post-message.dto';
 import { RoomsService } from './rooms.service';
 import { RoomsGateway } from './rooms.gateway';
+
+
+
 
 @Controller('rooms')
 export class RoomsController {
@@ -102,7 +107,7 @@ export class RoomsController {
 
     const msg = await this.rooms.addMessage(
       room.id,
-      dto.authorId ?? req.user.userId,
+      dto.authorId ?? req.user.id,  // ← используем req.user.id, а не userId
       dto.text,
       files,
     );
@@ -130,12 +135,36 @@ export class RoomsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('TEACHER', 'ADMIN')
   @Patch(':code/messages/:messageId')
+  @UseInterceptors(
+    FilesInterceptor('file', 10, {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (_, file, cb) => {
+          // правильно сохраняем оригинальное имя в utf8
+          const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+          cb(null, `${Date.now()}-${originalName}`);
+        },
+      }),
+    }),
+  )
   async editMessage(
     @Param('code') code: string,
     @Param('messageId') messageId: string,
     @Body('text') text: string,
+    @Body(
+      'removeAttachmentIds',
+      new DefaultValuePipe([]),
+      new ParseArrayPipe({ items: String, optional: true }),
+    )
+    removeAttachmentIds: string[] = [],
+    @UploadedFiles() files: Express.Multer.File[] = [],  // теперь у файлов будет .filename
   ) {
-    const updated = await this.rooms.updateMessage(messageId, text);
+    const updated = await this.rooms.updateMessageWithAttachments(
+      messageId,
+      text,
+      removeAttachmentIds,
+      files,
+    );
     this.gateway.server.to(code).emit('messageEdited', updated);
     return updated;
   }
