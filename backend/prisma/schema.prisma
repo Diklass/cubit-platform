@@ -69,17 +69,26 @@ model RoomMember {
 }
 
 model Message {
-  id            String   @id @default(uuid())
+  id            String       @id @default(uuid())
   authorId      String?
   text          String?
-  attachmentUrl String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime     @default(now())
   roomId        String?
   chatSessionId String?
 
   room        Room?        @relation(fields: [roomId], references: [id])
   chatSession ChatSession? @relation(fields: [chatSessionId], references: [id])
   author      User?        @relation("UserMessages", fields: [authorId], references: [id])
+  attachments Attachment[]  // ← новые вложения
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  url       String
+  message   Message  @relation(fields: [messageId], references: [id])
+  messageId String
+
+  createdAt DateTime @default(now())
 }
 
 model ChatSession {

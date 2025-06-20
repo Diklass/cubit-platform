@@ -8,12 +8,13 @@ import {
   Param,
   Body,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
   UseGuards,
   Req,
   Res,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { join } from 'path';
 import { Response } from 'express';
@@ -71,7 +72,7 @@ export class RoomsController {
   /** Отправка сообщения + файл (только авторизованные) */
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
-    FileInterceptor('file', {
+    FilesInterceptor('file', 10, {
       storage: diskStorage({
         destination: './uploads',
         filename: (_, file, cb) => {
@@ -89,7 +90,7 @@ export class RoomsController {
     @Req() req: any,
     @Param('code') code: string,
     @Body() dto: PostMessageDto,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFiles() files: Express.Multer.File[] = [],
   ) {
     const room = await this.rooms.findByCode(code);
 
@@ -98,12 +99,12 @@ export class RoomsController {
       await this.rooms.joinRoom(room.id, req.user.userId);
     }
 
-    const attachmentUrl = file ? `/uploads/${file.filename}` : undefined;
+
     const msg = await this.rooms.addMessage(
       room.id,
       dto.authorId ?? req.user.userId,
       dto.text,
-      attachmentUrl,
+      files,
     );
 
     // сразу вещаем через WebSocket всем в комнате

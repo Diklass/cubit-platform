@@ -2,6 +2,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaClient, Prisma, Room, RoomMember, Message } from '@prisma/client';
 import { customAlphabet } from 'nanoid';
+import { Express } from 'express';
+import { writeFileSync } from 'fs';
+import { extname } from 'path';
+import { v4 as uuid } from 'uuid';
 
 const nanoid = customAlphabet(
   '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
@@ -84,16 +88,23 @@ export class RoomsService {
     roomId: string,
     author: string | null,
     text?: string,
-    attachmentUrl?: string,
+    files: Express.Multer.File[] = [],
   ): Promise<Message> {
-    console.log(author)
+    // сохраняем файлы и готовим данные вложений
+    const attachmentsData = files.map(file => {
+      const fileName = `${uuid()}-${encodeURIComponent(file.originalname)}`;
+      writeFileSync(`uploads/${fileName}`, file.buffer);
+      return { url: fileName };
+    });
+
     return this.prisma.message.create({
       data: {
-      room: { connect: { id: roomId } },
-      author: author ? { connect: { id: author } } : undefined,
-      text,
-      attachmentUrl,
-    },
+        room:        { connect: { id: roomId } },
+        author:      author ? { connect: { id: author } } : undefined,
+        text:        text?.trim() || '',
+        attachments: files.length ? { create: attachmentsData } : undefined,
+      },
+      include: { attachments: true },
     });
   }
 

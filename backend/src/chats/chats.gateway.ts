@@ -1,102 +1,82 @@
+// src/modules/chats/chats.gateway.ts
 import {
-  MessageBody,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
   ConnectedSocket,
+  MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { ChatsService } from './chats.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
-import { ChatsService } from './chats.service';
 
 @Injectable()
 @WebSocketGateway({
-  namespace: /^\/chats\/.+$/, // динамический namespace: /chats/:sessionId
+  namespace: /^\/chats\/.+$/, // namespace = /chats/:sessionId
   cors: { origin: '*' },
 })
 export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  [x: string]: any;
-  @WebSocketServer()
-  server: Server;
+  @WebSocketServer() server: Server;
 
   constructor(
-  private readonly prisma: PrismaService,
-  private readonly chatsService: ChatsService, 
-) {}
+    private readonly chatsService: ChatsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   handleConnection(client: Socket) {
-    const namespace = client.nsp.name; // /chats/abc123
-    console.log(`[WS] Connected to ${namespace}`);
+    console.log(`[WS] Connected to ${client.nsp.name}`);
   }
 
   handleDisconnect(client: Socket) {
-    const namespace = client.nsp.name;
-    console.log(`[WS] Disconnected from ${namespace}`);
+    console.log(`[WS] Disconnected from ${client.nsp.name}`);
   }
 
   @SubscribeMessage('joinSession')
-  handleJoin(@MessageBody() sessionId: string, @ConnectedSocket() client: Socket) {
+  handleJoin(
+    @MessageBody() sessionId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
     client.join(sessionId);
     console.log(`[WS] Client joined session ${sessionId}`);
   }
 
-@SubscribeMessage('chatMessage')
-async handleMessage(
-  client: Socket,
-  @MessageBody()
-  payload: {
-    sessionId: string;
-    text: string;
-    authorId: string;
-  },
-) {
-  const { sessionId, text, authorId } = payload;
+  @SubscribeMessage('chatMessage')
+  async handleMessage(
+    @MessageBody()
+    payload: { sessionId: string; text: string; authorId: string },
+  ) {
+    // через WS файлы не передаются, только текст
+    const msg = await this.chatsService.sendMessage(
+      payload.sessionId,
+      payload.text,
+      [], // без файлов
+      { id: payload.authorId },
+    );
 
-  // теперь files — пустой массив, и sendMessage вернёт массив сообщений
-  const created = await this.chatsService.sendMessage(
-    sessionId,
-    text,
-    [],                         // вместо null — пустой массив
-    { id: authorId },
-  );
-
-  // для каждого вновь созданного сообщения — обогащаем и эмитим
-  for (const msg of created) {
-    const enriched = await this.prisma.message.findUnique({
-      where: { id: msg.id },
-      include: { author: true },
-    });
-    this.server.to(sessionId).emit('chatMessage', enriched);
+    // msg уже содержит author и attachments
+    this.server.to(payload.sessionId).emit('chatMessage', msg);
   }
-}
 
   @SubscribeMessage('chatEdited')
   async handleEdit(
-    client: Socket,
-    @MessageBody()
-    payload: { messageId: string; text: string; sessionId: string },
+    @MessageBody() payload: { messageId: string; text: string; sessionId: string },
   ) {
     const updated = await this.prisma.message.update({
       where: { id: payload.messageId },
       data: { text: payload.text },
+      include: { author: true, attachments: true },
     });
-
     this.server.to(payload.sessionId).emit('chatEdited', updated);
   }
 
   @SubscribeMessage('chatDeleted')
   async handleDelete(
-    client: Socket,
-    @MessageBody()
-    payload: { messageId: string; sessionId: string },
+    @MessageBody() payload: { messageId: string; sessionId: string },
   ) {
-    await this.prisma.message.delete({
-      where: { id: payload.messageId },
-    });
-
+    await this.prisma.message.delete({ where: { id: payload.messageId } });
     this.server.to(payload.sessionId).emit('chatDeleted', payload.messageId);
   }
 }
