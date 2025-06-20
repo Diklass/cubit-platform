@@ -43,7 +43,7 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`[WS] Client joined session ${sessionId}`);
   }
 
-  @SubscribeMessage('chatMessage')
+@SubscribeMessage('chatMessage')
 async handleMessage(
   client: Socket,
   @MessageBody()
@@ -55,19 +55,22 @@ async handleMessage(
 ) {
   const { sessionId, text, authorId } = payload;
 
-  const message = await this.chatsService.sendMessage(
+  // теперь files — пустой массив, и sendMessage вернёт массив сообщений
+  const created = await this.chatsService.sendMessage(
     sessionId,
     text,
-    null,
-    { id: authorId }  // имитируем user из JWT
+    [],                         // вместо null — пустой массив
+    { id: authorId },
   );
 
-  const enriched = await this.prisma.message.findUnique({
-    where: { id: message.id },
-    include: { author: true },
-  });
-
-  this.server.to(sessionId).emit('chatMessage', enriched);
+  // для каждого вновь созданного сообщения — обогащаем и эмитим
+  for (const msg of created) {
+    const enriched = await this.prisma.message.findUnique({
+      where: { id: msg.id },
+      include: { author: true },
+    });
+    this.server.to(sessionId).emit('chatMessage', enriched);
+  }
 }
 
   @SubscribeMessage('chatEdited')

@@ -69,32 +69,57 @@ return this.prisma.message.findMany({
 }
   
 
-  async sendMessage(sessionId: string, text: string, file: Express.Multer.File, user) {
-    const session = await this.prisma.chatSession.findUnique({
-      where: { id: sessionId },
-    });
+  async sendMessage(
+    sessionId: string,
+    text: string,
+    files: Express.Multer.File[],
+    user: { id: string },
+  ) {
+    // 1) Проверяем сессию и доступ
+    const session = await this.prisma.chatSession.findUnique({ where: { id: sessionId } });
     if (!session) throw new NotFoundException('Сессия не найдена');
-
     if (user.id !== session.studentId && user.id !== session.teacherId) {
-      throw new ForbiddenException('Нет доступа');
+      throw new ForbiddenException('Нет доступа к этой сессии');
     }
 
-    let attachmentUrl: string | undefined;
-    if (file) {
-      const ext = extname(file.originalname);
-      const fileName = `${uuid()}-${encodeURIComponent(file.originalname)}`;
-      const filePath = `uploads/${fileName}`;
-      writeFileSync(filePath, file.buffer);
-      attachmentUrl = fileName;
+    const created: any[] = [];
+
+    // 2) Если есть файлы — создаём сообщение(я) с вложениями
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const ext = extname(file.originalname);
+        const fileName = `${uuid()}-${encodeURIComponent(file.originalname)}`;
+        const filePath = `uploads/${fileName}`;
+        writeFileSync(filePath, file.buffer);
+
+        const msg = await this.prisma.message.create({
+          data: {
+            text: i === 0 ? text : '',            // только в первом файле сохраняем текст
+            attachmentUrl: fileName,
+            chatSession: { connect: { id: sessionId } },
+            author:      { connect: { id: user.id } },
+          },
+          include: { author: true },
+        });
+
+        created.push(msg);
+      }
+    }
+    // 3) Если нет файлов, но есть текст — одно текстовое сообщение
+    else if (text && text.trim() !== '') {
+      const msg = await this.prisma.message.create({
+        data: {
+          text,
+          chatSession: { connect: { id: sessionId } },
+          author:      { connect: { id: user.id } },
+        },
+        include: { author: true },
+      });
+      created.push(msg);
     }
 
-return this.prisma.message.create({
-  data: {
-    text,
-    chatSession: { connect: { id: sessionId } },
-    author: { connect: { id: user.id } },
-    ...(attachmentUrl && { attachmentUrl }),
-  },
-});
+    return created;  // возвращаем массив созданных сообщений
   }
 }
+

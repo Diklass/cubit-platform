@@ -53,13 +53,16 @@ export function RoomPage() {
 
   // 2) Подгрузить список сессий для учителя
   useEffect(() => {
-    if (isTeacher && showChat) {
-      // <<< ИСПРАВЛЕНО: правильный эндпоинт — /rooms/:code/chats
-      api.get<ChatSession[]>(`/rooms/${code}/chats`)
-        .then(r => setChatSessions(r.data))
-        .catch(console.error);
-    }
-  }, [isTeacher, showChat, code]);
+  if (isTeacher && showChat) {
+    api.get<ChatSession[]>(`/rooms/${code}/chats`)      // <-- chats, а не sessions
+      .then(r => setChatSessions(r.data))
+      .catch(console.error);
+
+    api.get<Record<string, number>>(`/rooms/${code}/unread-counts`)
+      .then(r => setUnreadCounts(r.data))
+      .catch(console.error);
+  }
+}, [isTeacher, showChat, code]);
 
   // 3) WS-уведомления для ученика
   useEffect(() => {
