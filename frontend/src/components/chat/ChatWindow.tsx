@@ -7,7 +7,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useAuth } from '../../auth/AuthContext';
 
-type Attachment = { url: string };
+type Attachment = { id: string; url: string };
 
 type Message = {
   id: string;
@@ -39,6 +39,9 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+
+  const [editRemoveIds, setEditRemoveIds] = useState<string[]>([]);
+  const [editNewFiles, setEditNewFiles]   = useState<File[]>([]);
 
   // 1) Загрузить историю
   useEffect(() => {
@@ -125,7 +128,10 @@ prev
       isTemp: true,
       text: text.trim(),
       author: { id: user!.id, email: user!.email },
-      attachments: files.map(f => ({ url: URL.createObjectURL(f) })),
+      attachments: files.map((f, i) => ({
+        id: `temp-${Date.now()}-${i}`,
+        url: URL.createObjectURL(f)
+      })),
       createdAt: now,
     };
     setMessages(prev => [...prev, tempMsg]);
@@ -162,17 +168,37 @@ prev
   const startEdit = (m: Message) => {
     setEditingId(m.id);
     setEditText(m.text || '');
+
+    setEditRemoveIds([]);      
+    setEditNewFiles([]);
   };
-  const submitEdit = () => {
+  const submitEdit = async () => {
     if (!editingId) return;
-    socketRef.current?.emit('chatEdited', {
-      sessionId,
-      messageId: editingId,
-      text: editText,
-    });
-    setEditingId(null);
-    setEditText('');
+
+    // Собираем FormData
+  const fd = new FormData();
+  fd.append('text', editText);
+  editRemoveIds.forEach(id => fd.append('removeAttachmentIds', id));
+  editNewFiles.forEach(f => fd.append('newFiles', f));
+
+    // Отправляем PATCH на контроллер
+    try {
+      await api.patch(
+        `/chats/${sessionId}/messages/${editingId}`,
+        fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      // сброс локальных state
+      setEditingId(null);
+      setEditText('');
+      setEditRemoveIds([]);
+      setEditNewFiles([]);
+    } catch (err) {
+      console.error('Ошибка редактирования:', err);
+      alert('Не удалось обновить сообщение');
+    }
   };
+
 
   // 7) Удаление
   const deleteMsg = (id: string) => {
@@ -208,32 +234,76 @@ prev
     );
   };
 
-  return (
-    <div ref={containerRef} className="flex flex-col h-full relative">
-      {dragCounter > 0 && (
-        <div className="absolute inset-0 bg-black bg-opacity-20 border-4 border-dashed border-indigo-600 z-10 flex items-center justify-center">
-          <span className="text-white text-lg">Перетащите файлы сюда</span>
-        </div>
-      )}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map(m => (
-          <div key={m.id} className="relative bg-white p-3 rounded shadow-sm">
-            <div className="text-sm text-gray-500 mb-1">
-              {m.author?.email ?? 'Гость'} — {new Date(m.createdAt).toLocaleString()}
-            </div>
+    return (
+      <div ref={containerRef} className="flex flex-col h-full relative">
+        {dragCounter > 0 && (
+          <div className="absolute inset-0 bg-black bg-opacity-20 border-4 border-dashed border-indigo-600 z-10 flex items-center justify-center">
+            <span className="text-white text-lg">Перетащите файлы сюда</span>
+          </div>
+        )}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {messages.map(m => (
+            <div key={m.id} className="relative bg-white p-3 rounded shadow-sm">
+              <div className="text-sm text-gray-500 mb-1">
+                {m.author?.email ?? 'Гость'} — {new Date(m.createdAt).toLocaleString()}
+              </div>
 
-            {editingId === m.id ? (
-              <>
-                <ReactQuill theme="snow" value={editText} onChange={setEditText}
-                  modules={{ toolbar: [['bold','italic'],['link'],['clean']] }}
-                  className="h-32 mb-2"
-                />
-                <div className="flex space-x-2">
-                  <button onClick={submitEdit} className="bg-green-600 text-white px-3 py-1 rounded">Сохранить</button>
-                  <button onClick={() => setEditingId(null)} className="bg-gray-300 px-3 py-1 rounded">Отмена</button>
+        {editingId === m.id ? (
+          <>
+            {/* 1. Редактируем текст */}
+            <ReactQuill theme="snow" value={editText} onChange={setEditText} />
+            {/* 2. Существующие вложения: отметка на удаление */}
+            <div className="mt-2">
+              {m.attachments?.map(att => (
+                <div key={att.id} className="inline-block relative mr-2">
+                  <img src={`http://localhost:3001/rooms/files/${att.url}`}
+                      className="max-h-24 rounded border" />
+                  <button
+                    onClick={() => {
+                      setEditRemoveIds(ids =>
+                        ids.includes(att.id) 
+                          ? ids.filter(x => x !== att.id) 
+                          : [...ids, att.id]
+                      );
+                    }}
+                    className={`absolute top-0 right-0 bg-white rounded-full text-red-600 p-1 ${
+                      editRemoveIds.includes(att.id) ? 'opacity-100' : 'opacity-50'
+                    }`}
+                    title="Удалить вложение"
+                  >×</button>
                 </div>
-              </>
-            ) : (
+              ))}
+            </div>
+            {/* 3. Добавить новые файлы */}
+            <div className="mt-2">
+              <input
+                type="file"
+                multiple
+                onChange={e => {
+                  const chosen = Array.from(e.target.files || []);
+                  setEditNewFiles(prev => [...prev, ...chosen]);
+                }}
+              />
+              {/* превью новых файлов */}
+              <div className="flex flex-wrap mt-2">
+                {editNewFiles.map((f, i) => (
+                  <div key={i} className="mr-2">
+                    <span className="text-sm">{f.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* 4. Кнопки */}
+            <div className="flex space-x-2 mt-3">
+              <button onClick={submitEdit} className="bg-green-600 text-white px-3 py-1 rounded">
+                Сохранить
+              </button>
+              <button onClick={() => setEditingId(null)} className="bg-gray-300 px-3 py-1 rounded">
+                Отмена
+              </button>
+            </div>
+          </>
+        ) : (
               <>
                 {m.text && <div className="prose" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(m.text) }} />}
                 {m.attachments?.map(att => {

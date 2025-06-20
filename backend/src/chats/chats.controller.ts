@@ -1,23 +1,15 @@
 // src/modules/chats/chats.controller.ts
-import {
-  Controller,
-  Get,
-  Post,
-  Param,
-  Body,
-  UseGuards,
-  Req,
-  UploadedFiles,
-  UseInterceptors,
-  NotFoundException,
-  ForbiddenException,
-  Inject,
-} from '@nestjs/common';
+import { Get, Post, Patch, Param, Body, UseGuards, Req, UploadedFiles, UseInterceptors, Inject } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChatsService } from './chats.service';
 import { ChatsGateway } from './chats.gateway';
+
+import { EditMessageDto } from './dto/edit-message.dto';
+
+
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -47,4 +39,33 @@ export class ChatsController {
  ) {
    return this.chatsService.sendMessage(sessionId, text, files, req.user);
  }
+
+  @Patch('chats/:sessionId/messages/:messageId')
+  @UseInterceptors(FilesInterceptor('newFiles', 10))
+  async editMessage(
+    @Req() req: any,
+    @Param('sessionId') sessionId: string,
+    @Param('messageId') messageId: string,
+    @Body('text') text: string,
+   @Body('removeAttachmentIds') removeIds: string | string[],
+   @UploadedFiles() newFiles: Express.Multer.File[] = [],
+  ) {
+// Формируем нормальный массив строк:
+    const removeAttachmentIds = Array.isArray(removeIds)
+      ? removeIds
+      : removeIds
+        ? [removeIds]
+        : [];
+    const updated = await this.chatsService.editMessage(
+      messageId,
+      text ?? '',
+      removeAttachmentIds,
+      newFiles,
+      req.user,
+    );
+    this.chatsGateway.server
+      .to(sessionId)
+      .emit('chatEdited', updated);
+    return updated;
+  }
 }

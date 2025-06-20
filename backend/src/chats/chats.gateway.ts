@@ -76,7 +76,7 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleDelete(
     @MessageBody() payload: { messageId: string; sessionId: string },
   ) {
-    await this.prisma.message.delete({ where: { id: payload.messageId } });
+    await this.chatsService.deleteMessageWithAttachments(payload.messageId);
     this.server.to(payload.sessionId).emit('chatDeleted', payload.messageId);
   }
 }

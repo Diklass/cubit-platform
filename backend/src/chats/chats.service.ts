@@ -57,9 +57,50 @@ export class ChatsService {
     });
   }
 
+   async editMessage(
+    messageId: string,
+    newText: string,
+    removeAttachmentIds: string[],
+    newFiles: Express.Multer.File[],
+    user: { id: string },
+  ) {
+    // 1) проверяем авторство
+    const msg = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: { author: true },
+    });
+    if (!msg) throw new NotFoundException('Сообщение не найдено');
+    if (msg.authorId !== user.id) throw new ForbiddenException('Нет доступа');
+
+    // 2) удалить указанные вложения
+    if (removeAttachmentIds.length) {
+      await this.prisma.attachment.deleteMany({
+        where: { id: { in: removeAttachmentIds } },
+      });
+    }
+
+    // 3) сохранить новые файлы
+    const attachmentsData = newFiles.map(file => {
+      const fileName = `${uuid()}-${encodeURIComponent(file.originalname)}`;
+      writeFileSync(`uploads/${fileName}`, file.buffer);
+      return { url: fileName, messageId };
+    });
+    if (attachmentsData.length) {
+      await this.prisma.attachment.createMany({ data: attachmentsData });
+    }
+
+    // 4) обновить текст и вернуть вместе с attachments
+    return this.prisma.message.update({
+      where: { id: messageId },
+      data: { text: newText.trim() || '' },
+      include: { author: true, attachments: true },
+    });
+  }
+
   /**
    * Отправка сообщения с текстом и вложениями (в одном сообщении)
    */
+
   async sendMessage(
     sessionId: string,
     text: string,
@@ -95,4 +136,15 @@ export class ChatsService {
 
     return message;
   }
+
+  async deleteMessageWithAttachments(messageId: string) {
+  // сначала удаляем вложения
+  await this.prisma.attachment.deleteMany({
+    where: { messageId },
+  });
+  // затем само сообщение
+  return this.prisma.message.delete({
+    where: { id: messageId },
+  });
+}
 }
