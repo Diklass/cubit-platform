@@ -1,5 +1,5 @@
 // src/components/chat/EditMessageModal.tsx
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
@@ -30,27 +30,27 @@ export default function EditMessageModal({
   onSave,
 }: EditModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const [dragCount, setDragCount] = useState(0);
 
-  // Drag & Drop внутри модалки — и останавливаем всплытие
+  // Drag&Drop внутри модалки с оверлеем
   useEffect(() => {
     const el = modalRef.current;
     if (!el) return;
 
     const onDragEnter = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
+      setDragCount(c => c + 1);
     };
     const onDragOver = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
     };
     const onDragLeave = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
+      setDragCount(c => c - 1);
     };
     const onDrop = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
+      setDragCount(0);
       const dropped = Array.from(e.dataTransfer?.files || []);
       if (dropped.length) onAddNewFiles(dropped);
     };
@@ -71,8 +71,15 @@ export default function EditMessageModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div
         ref={modalRef}
-        className="bg-white w-11/12 md:w-2/3 lg:w-1/2 p-4 rounded shadow-lg"
+        className="relative bg-white w-11/12 md:w-2/3 lg:w-1/2 p-4 rounded shadow-lg"
       >
+        {/* ————— Оверлей при Drag&Drop ————— */}
+        {dragCount > 0 && (
+          <div className="absolute inset-0 bg-black bg-opacity-20 z-10 flex items-center justify-center pointer-events-none">
+            <span className="text-white text-lg">Перетащите файлы сюда</span>
+          </div>
+        )}
+
         <h2 className="text-xl mb-4">Редактировать сообщение</h2>
 
         {/* Текстовый редактор */}
@@ -97,8 +104,8 @@ export default function EditMessageModal({
                 <button
                   onClick={() => onToggleRemove(att.id)}
                   className={`absolute top-0 right-0 bg-white p-1 rounded-full ${
-                    removeIds.includes(att.id) 
-                      ? 'opacity-100 text-red-600' 
+                    removeIds.includes(att.id)
+                      ? 'opacity-100 text-red-600'
                       : 'opacity-50 text-gray-400'
                   }`}
                 >

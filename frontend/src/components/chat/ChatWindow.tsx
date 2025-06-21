@@ -125,47 +125,60 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
   }, [files, editingMessage]);
 
   // 5) Отправка сообщения
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text && files.length === 0) return;
+const send = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!text.trim() && files.length === 0) return;
 
-    const now = new Date().toISOString();
-    const tempId = `temp-${Date.now()}`;
-    const tempMsg: Message = {
-      id: tempId,
-      isTemp: true,
-      text: text.trim(),
-      author: { id: user!.id, email: user!.email },
-      attachments: files.map((f, i) => ({
-        id: `temp-${tempId}-${i}`,
-        url: URL.createObjectURL(f),
-      })),
-      createdAt: now,
-    };
-    setMessages(prev => [...prev, tempMsg]);
+  // Собираем временное сообщение для прелоада
+  const now = new Date().toISOString();
+  const tempId = `temp-${Date.now()}`;
+  const tempMsg: Message = {
+    id: tempId,
+    isTemp: true,
+    text: text.trim(),
+    author: { id: user!.id, email: user!.email },
+    attachments: files.map((f, i) => ({
+      id: `temp-${tempId}-${i}`,
+      url: URL.createObjectURL(f),
+    })),
+    createdAt: now,
+  };
+  setMessages(prev => [...prev, tempMsg]);
 
-    const fd = new FormData();
-    if (text.trim()) fd.append('text', text.trim());
-    files.forEach(f => fd.append('files', f));
+     // Формируем FormData
+  const fd = new FormData();
+  if (text.trim()) fd.append('text', text.trim());
+  files.forEach(f => fd.append('files', f));
 
-    setUploading(true);
-    try {
-      await api.post(`/chats/${sessionId}/messages`, fd, {
+  setUploading(true);
+  try {
+    // Отправляем на сервер и ждём реального сообщения в ответе
+    const res = await api.post<Message>(
+      `/chats/${sessionId}/messages`,
+      fd,
+      {
         onUploadProgress: evt => {
           const pct = Math.round((evt.loaded / (evt.total ?? 1)) * 100);
           setProgress(pct);
         },
-      });
-      setText('');
-      setFiles([]);
-    } catch (err: any) {
-      setMessages(prev => prev.filter(m => m.id !== tempId));
-      console.error('Ошибка отправки:', err.response?.data || err);
-      alert('Не удалось отправить сообщение');
-      return;
+      }
+    );
+    const realMsg = res.data;
+    // Заменяем temp-сообщение на реальное
+    setMessages(prev =>
+      prev.map(m => (m.id === tempId ? realMsg : m))
+    );
+    // Сбрасываем форму
+    setText('');
+    setFiles([]);
+  } catch (err: any) {
+    // Если ошибка — убираем temp-сообщение
+    setMessages(prev => prev.filter(m => m.id !== tempId));
+    console.error('Ошибка отправки:', err.response?.data || err);
+    alert('Не удалось отправить сообщение');
     } finally {
-      setUploading(false);
-      setProgress(0);
+    setUploading(false);
+    setProgress(0);
     }
   };
 
@@ -179,16 +192,26 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
 
   // 7) Сохранение редактирования
   const onSaveEdit = async () => {
+    // сначала убедимся, что у нас есть настоящее сообщение
     if (!editingMessage) return;
+    // не редактируем временные сообщения
+    if (editingMessage.id.startsWith('temp-')) {
+      setEditingMessage(null);
+      return;
+    }
     const fd = new FormData();
+
+    // теперь безопасно можем взять id
+    const messageId = editingMessage.id;
+
     fd.append('text', editText);
     editRemoveIds.forEach(id => fd.append('removeAttachmentIds', id));
     editNewFiles.forEach(f => fd.append('newFiles', f));
 
     try {
-      const updated: Message = (await api.patch(
-        `/chats/${sessionId}/messages/${editingMessage.id}`,
-        fd,
+       const updated: Message = (await api.patch(
+        `/chats/${sessionId}/messages/${editingMessage!.id}`,  // non-null assertion
+         fd,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )).data;
       setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
@@ -272,7 +295,7 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
             })}
 
             {/* Кнопки редактирования/удаления */}
-            {m.author?.id === user?.id && !editingMessage && (
+            {m.author?.id === user?.id && !m.isTemp && !editingMessage && (
               <div className="absolute top-2 right-2 flex space-x-1">
                 <button
                   onClick={() => onStartEdit(m)}

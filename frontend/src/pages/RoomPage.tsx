@@ -51,32 +51,31 @@ export function RoomPage() {
 
  // общий WS для комнаты (материалы)
   useEffect(() => {
+    // 1) подгрузка истории
     api.get<{ messages: RoomMessage[] }>(`/rooms/${code}`)
       .then(r => setMessages(r.data.messages))
       .catch(console.error);
 
+    // 2) WS-подписка
     const ws = io('http://localhost:3001/rooms', { transports: ['websocket'] });
     ws.emit('join', code);
-    ws.on('newMessage', (msg: RoomMessage) => setMessages(prev => [msg, ...prev]));
-    ws.on('messageEdited', (upd: RoomMessage) => setMessages(prev => prev.map(m => m.id === upd.id ? upd : m)));
-    ws.on('messageDeleted', (id: string) => setMessages(prev => prev.filter(m => m.id !== id)));
+
+    ws.on('newMessage', (msg: RoomMessage) => {
+      // добавляем только если ещё нет в списке
+      setMessages(prev =>
+        prev.some(m => m.id === msg.id) ? prev : [msg, ...prev]
+      );
+    });
+    ws.on('messageEdited', (upd: RoomMessage) =>
+      setMessages(prev => prev.map(m => (m.id === upd.id ? upd : m)))
+    );
+    ws.on('messageDeleted', (id: string) =>
+      setMessages(prev => prev.filter(m => m.id !== id))
+    );
+
     return () => { ws.disconnect(); };
   }, [code]);
 
-  
-  // 1) загрузить материалы + подписаться на WS
-  useEffect(() => {
-    api.get<{ messages: RoomMessage[] }>(`/rooms/${code}`)
-      .then(r => setMessages(r.data.messages))       // или .reverse() по желанию
-      .catch(console.error);
-
-    const ws = io('http://localhost:3001/rooms', { transports: ['websocket'] });
-    ws.emit('join', code);
-    ws.on('newMessage', msg =>   setMessages(prev => [msg, ...prev]));
-    ws.on('messageEdited', upd => setMessages(prev => prev.map(m => m.id===upd.id?upd:m)));
-    ws.on('messageDeleted', id => setMessages(prev => prev.filter(m=>m.id!==id)));
-    return () => { ws.disconnect() };
-  }, [code]);
 
    // 2) WS для чатов: студент сразу, учитель при открытии
   useEffect(() => {
@@ -117,42 +116,29 @@ useEffect(() => {
 }, [isTeacher, showChat, code]);
 
   // 4) drag & drop для новой формы
-   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const onDragEnter = (e: DragEvent) => {
-      if (editingMessage) return;    // если модал открыт — игнорируем
-      e.preventDefault();
-      setDragCounter(c => c + 1);
-    };
-    const onDragOver = (e: DragEvent) => {
-      if (editingMessage) return;
-      e.preventDefault();
-    };
-    const onDragLeave = (e: DragEvent) => {
-      if (editingMessage) return;
-      e.preventDefault();
-      setDragCounter(c => c - 1);
-    };
-    const onDrop = (e: DragEvent) => {
-      if (editingMessage) return;    // <-- главное
-      e.preventDefault();
-      setDragCounter(0);
-      const dropped = Array.from(e.dataTransfer?.files || []).slice(0, 10 - files.length);
-      if (dropped.length) setFiles(prev => [...prev, ...dropped]);
-    };
-
-    el.addEventListener('dragenter', onDragEnter);
-    el.addEventListener('dragover',  onDragOver);
-    el.addEventListener('dragleave', onDragLeave);
-    el.addEventListener('drop',     onDrop);
-    return () => {
-      el.removeEventListener('dragenter', onDragEnter);
-      el.removeEventListener('dragover',  onDragOver);
-      el.removeEventListener('dragleave', onDragLeave);
-      el.removeEventListener('drop',     onDrop);
-    };
-  }, [files, editingMessage]);
+    useEffect(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const onDragEnter = (e: DragEvent) => { e.preventDefault(); setDragCounter(c => c + 1); };
+      const onDragOver  = (e: DragEvent) => { e.preventDefault(); };
+      const onDragLeave = (e: DragEvent) => { e.preventDefault(); setDragCounter(c => c - 1); };
+      const onDrop      = (e: DragEvent) => {
+        e.preventDefault();
+        setDragCounter(0);
+        const dropped = Array.from(e.dataTransfer?.files || []);
+        setFiles(prev => [...prev, ...dropped]);
+      };
+      el.addEventListener('dragenter', onDragEnter);
+      el.addEventListener('dragover',  onDragOver);
+      el.addEventListener('dragleave', onDragLeave);
+      el.addEventListener('drop',     onDrop);
+      return () => {
+        el.removeEventListener('dragenter', onDragEnter);
+        el.removeEventListener('dragover',  onDragOver);
+        el.removeEventListener('dragleave', onDragLeave);
+        el.removeEventListener('drop',     onDrop);
+      };
+    }, [files]);
 
   // 5) отправка
   const send = async (e: React.FormEvent) => {
@@ -305,7 +291,13 @@ const onDelete = async (id: string) => {
         </div>
       ) : (
         // — МАТЕРИАЛЫ —
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div ref={containerRef} className="flex-1 flex flex-col relative overflow-hidden">
+          {dragCounter > 0 && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black bg-opacity-20 border-4 border-dashed border-indigo-600">
+              <span className="text-white">Перетащите файлы сюда</span>
+            </div>
+          )}
+
           <div className="overflow-auto p-4 space-y-4">
             {messages.map(m => (
               <div key={m.id} className="relative bg-white p-3 rounded shadow-sm">
@@ -352,24 +344,49 @@ const onDelete = async (id: string) => {
             ))}
           </div>
 
-          {isTeacher && (
-            <form onSubmit={sendMaterial} className="border-t p-4 flex items-center space-x-2">
-              <ReactQuill
-                value={text}
-                onChange={setText}
-                modules={{ toolbar:[['bold','italic'],['link'],['clean']]}}
-                className="flex-1 h-24"
-              />
+
+      {isTeacher && (
+        <form onSubmit={sendMaterial} className="bg-white border-t p-4 flex flex-col space-y-2">
+          <ReactQuill
+            value={text}
+            onChange={setText}
+            modules={{ toolbar:[['bold','italic'],['link'],['clean']] }}
+            className="h-24"
+          />
+
+      <div className="flex items-center space-x-2">
               <input
+                id="roomFiles"
                 type="file"
                 multiple
-                onChange={e=>setFiles(Array.from(e.target.files||[]))}
-                className="border rounded px-2 py-1"
+                className="hidden"
+                onChange={e => {
+                  const chosen = Array.from(e.target.files || []);
+                  setFiles(prev => [...prev, ...chosen]);
+                }}
               />
-              <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded">
-                Отправить
-              </button>
-            </form>
+              <label
+                htmlFor="roomFiles"
+                className="bg-gray-200 p-2 rounded cursor-pointer select-none"
+              >+</label>
+
+              <button
+                type="submit"
+                className="px-4 py-2 bg-indigo-600 text-white rounded"
+              >Отправить</button>
+            </div> 
+        {/* превью выбранных файлов */}
+        {files.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {files.map((f, i) => (
+              <div key={i} className="bg-gray-100 px-2 py-1 rounded flex items-center space-x-2">
+                <span className="text-sm break-all">{f.name}</span>
+                <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        </form>
           )}
           {editingMessage && (
   <EditMessageModal
