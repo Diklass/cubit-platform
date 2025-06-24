@@ -44,7 +44,7 @@ export class RoomsController {
   @UseGuards(JwtAuthGuard)
   @Get()
   async list(@Req() req: any) {
-    return this.rooms.listForUser(req.user.userId, req.user.role);
+    return this.rooms.listForUser(req.user.id, req.user.role);
   }
 
   /** Создать новую комнату (только TEACHER | ADMIN) */
@@ -52,15 +52,15 @@ export class RoomsController {
   @Roles('TEACHER', 'ADMIN')
   @Post()
   async create(@Req() req: any, @Body() dto: CreateRoomDto) {
-    return this.rooms.createRoom(dto.title, req.user.userId);
+    // здесь точно есть req.user.id
+    return this.rooms.createRoom(dto.title, req.user.id);
   }
-
   /** Войти в комнату по коду (любой авторизованный пользователь) */
   @UseGuards(JwtAuthGuard)
   @Post(':code/join')
   async join(@Req() req: any, @Param('code') code: string) {
     const room = await this.rooms.findByCode(code);
-    await this.rooms.joinRoom(room.id, req.user.userId);
+    await this.rooms.joinRoom(room.id, req.user.id);
     return { success: true };
   }
 
@@ -189,13 +189,13 @@ export class RoomsController {
   }
 
   @UseGuards(JwtAuthGuard)
-@Get(':code/chats')
-async getChats(@Req() req, @Param('code') code: string) {
-  const { userId, role } = req.user;
-  if (role === 'STUDENT') {
-    return this.rooms.getOrCreateSessionForStudent(code, userId);
-  } else {
-    return this.rooms.listChatSessionsForTeacher(code, userId);
+  @Get(':code/chats')
+  async getChats(@Req() req: any, @Param('code') code: string) {
+    const { id, role } = req.user;      // ← берем req.user.id, а не req.user.userId
+    if (role === 'STUDENT') {
+      return this.rooms.getOrCreateSessionForStudent(code, id);
+    } else {
+      return this.rooms.listChatSessionsForTeacher(code, id);
+    }
   }
-}
 }
