@@ -32,13 +32,30 @@ export class ChatsController {
   @Post('chats/:id/messages')
   @UseInterceptors(FilesInterceptor('files', 10))
   async sendMessage(
-   @Req() req: any,
-   @Param('id') sessionId: string,
-   @Body('text') text: string,                     // <- только это поле из body
-   @UploadedFiles() files: Express.Multer.File[] = []
- ) {
-   return this.chatsService.sendMessage(sessionId, text, files, req.user);
- }
+    @Req() req: any,
+    @Param('id') sessionId: string,
+    @Body('text') text: string,
+    @UploadedFiles() files: Express.Multer.File[] = []
+  ) {
+    // сохраняем в БД
+    const message = await this.chatsService.sendMessage(
+      sessionId,
+      text,
+      files,
+      req.user,
+    );
+
+    // **добавляем эту строку** — шлём новому сообщению всем в комнате
+    this.chatsGateway.server
+      .to(sessionId)
+      .emit('chatMessage', {
+        ...message,
+        updatedAt: message.createdAt,
+        readBy: [],
+      });
+
+    return message;
+  }
 
   @Patch('chats/:sessionId/messages/:messageId')
   @UseInterceptors(FilesInterceptor('newFiles', 10))

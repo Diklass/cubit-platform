@@ -1,6 +1,5 @@
 // src/pages/RoomPage.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
 import api from '../api';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -9,19 +8,19 @@ import { useAuth } from '../auth/AuthContext';
 import EditMessageModal, { Attachment } from '../components/chat/EditMessageModal';
 import { useParams } from 'react-router-dom';
 import copy from 'copy-to-clipboard';
-import 'react-quill/dist/quill.snow.css';
 import { ChatWindow } from '../components/chat/ChatWindow';
+import { useRoomSocket, RoomMessage } from '../hooks/useRoomSocket';
 
-
-type RoomMessage = { id: string; text?: string; author?: { id: string; email: string }; attachments?: Attachment[]; createdAt: string };
-
-
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   if (!code) return null;
   const { user } = useAuth();
-  const [messages, setMessages] = useState<RoomMessage[]>([]);
+  const queryClient = useQueryClient();
+
+
+
   const [text, setText] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [dragCounter, setDragCounter] = useState(0);
@@ -35,7 +34,6 @@ export function RoomPage() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const socketRef = useRef<Socket | null>(null);
 
   const isTeacher = user?.role === 'TEACHER' || user?.role === 'ADMIN';
   const isStudent = user?.role === 'STUDENT';
@@ -46,191 +44,145 @@ export function RoomPage() {
   const [showChat, setShowChat] = useState(false);
   const [showCodeBig, setShowCodeBig] = useState(false);
 
-  const [file, setFile]       = useState<File | null>(null);
+    // Хук вытаскивает: messages, setMessages и socket
+  const { messages, setMessages, socket } = useRoomSocket({
+    code,
+    onError: console.error
+  });
 
+ // 1) Подгружаем историю через React Query (с пушем в локальный setMessages)
+ const { data: queriedMessages, isLoading: loadingMessages } = useQuery<RoomMessage[], Error>({
+   queryKey: ['roomMessages', code],
+   queryFn: () =>
+     api
+       .get<{ messages: RoomMessage[] }>(`/rooms/${code}`)
+       .then(res => res.data.messages.reverse()),
+ });
 
- // общий WS для комнаты (материалы)
-  useEffect(() => {
-    // 1) подгрузка истории
-    api.get<{ messages: RoomMessage[] }>(`/rooms/${code}`)
-      .then(r => setMessages(r.data.messages))
-      .catch(console.error);
+ useEffect(() => {
+   if (queriedMessages) {
+     setMessages(queriedMessages);
+   }
+ }, [queriedMessages, setMessages]);
 
-    // 2) WS-подписка
-    const ws = io('http://localhost:3001/rooms', { transports: ['websocket'] });
-    ws.emit('join', code);
-
-    ws.on('newMessage', (msg: RoomMessage) => {
-      // добавляем только если ещё нет в списке
-      setMessages(prev =>
-        prev.some(m => m.id === msg.id) ? prev : [msg, ...prev]
-      );
-    });
-    ws.on('messageEdited', (upd: RoomMessage) =>
-      setMessages(prev => prev.map(m => (m.id === upd.id ? upd : m)))
-    );
-    ws.on('messageDeleted', (id: string) =>
-      setMessages(prev => prev.filter(m => m.id !== id))
-    );
-
-    return () => { ws.disconnect(); };
-  }, [code]);
-
-
-   // 2) WS для чатов: студент сразу, учитель при открытии
-  useEffect(() => {
-    if (isStudent) {
-      api.get<{ id: string }>(`/rooms/${code}/chats`)
-        .then(r => setChatSessionId(r.data.id))
-        .catch(console.error);
-    }
-  }, [isStudent, code]);
 
   useEffect(() => {
-    if (isTeacher && showChat) {
-      api.get(`/rooms/${code}/chats`).then(r => setChatSessions(r.data));
-      api.get(`/rooms/${code}/unread-counts`).then(r => setUnreadCounts(r.data));
-    }
-  }, [isTeacher, showChat, code]);
+  if (!isStudent) return;
+  api.get<{ id: string }>(`/rooms/${code}/chats`)
+    .then(r => {
+      setChatSessionId(r.data.id);
+      // сразу сбросим непрочитанный счётчик
+      setUnreadCounts(u => ({ ...u, [r.data.id]: 0 }));
+    })
+    .catch(console.error);
+}, [isStudent, code]);
 
-  // 3) автоскролл
+
+  // — Чат для учителя (список сессий + непрочитанные)
+  useEffect(() => {
+  if (!isTeacher || !showChat) return;
+  api.get(`/rooms/${code}/chats`)
+    .then(r => setChatSessions(r.data))
+    .catch(console.error);
+  api.get(`/rooms/${code}/unread-counts`)
+    .then(r => setUnreadCounts(r.data))
+    .catch(console.error);
+}, [isTeacher, showChat, code]);
+
+  // — Автоскролл вниз
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // пример для ученика — получение своей сессии
-useEffect(() => {
-  if (isStudent) {
-    api.get<{ id: string }>(`/rooms/${code}/chats`)
-      .then(r => setChatSessionId(r.data.id))
-      .catch(console.error);
-  }
-}, [isStudent, code]);
+  // — Drag&Drop (создание нового сообщения)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onDragEnter = (e: DragEvent) => { e.preventDefault(); setDragCounter(c => c + 1); };
+    const onDragOver  = (e: DragEvent) => { e.preventDefault(); };
+    const onDragLeave = (e: DragEvent) => { e.preventDefault(); setDragCounter(c => c - 1); };
+    const onDrop      = (e: DragEvent) => {
+      e.preventDefault();
+      setDragCounter(0);
+      const dropped = Array.from(e.dataTransfer?.files || []);
+      setFiles(prev => [...prev, ...dropped]);
+    };
+    el.addEventListener('dragenter', onDragEnter);
+    el.addEventListener('dragover',  onDragOver);
+    el.addEventListener('dragleave', onDragLeave);
+    el.addEventListener('drop',     onDrop);
+    return () => {
+      el.removeEventListener('dragenter', onDragEnter);
+      el.removeEventListener('dragover',  onDragOver);
+      el.removeEventListener('dragleave', onDragLeave);
+      el.removeEventListener('drop',     onDrop);
+    };
+  }, [files]);
 
-// пример для учителя — список сессий + не прочитанные
-useEffect(() => {
-  if (isTeacher && showChat) {
-    api.get(`/rooms/${code}/chats`).then(r => setChatSessions(r.data));
-    api.get(`/rooms/${code}/unread-counts`).then(r => setUnreadCounts(r.data));
-  }
-}, [isTeacher, showChat, code]);
+  // — Отправка нового сообщения
+ // 2) Мутация на отправку нового сообщения
+ const addMessage = useMutation<unknown, Error, FormData>({
+   mutationFn: (fd: FormData) => api.post(`/rooms/${code}/messages`, fd),
+   onSuccess: () => {
+     queryClient.invalidateQueries({ queryKey: ['roomMessages', code] });
+   },
+   onError: () => alert('Ошибка отправки'),
+ });
 
-  // 4) drag & drop для новой формы
-    useEffect(() => {
-      const el = containerRef.current;
-      if (!el) return;
-      const onDragEnter = (e: DragEvent) => { e.preventDefault(); setDragCounter(c => c + 1); };
-      const onDragOver  = (e: DragEvent) => { e.preventDefault(); };
-      const onDragLeave = (e: DragEvent) => { e.preventDefault(); setDragCounter(c => c - 1); };
-      const onDrop      = (e: DragEvent) => {
-        e.preventDefault();
-        setDragCounter(0);
-        const dropped = Array.from(e.dataTransfer?.files || []);
-        setFiles(prev => [...prev, ...dropped]);
-      };
-      el.addEventListener('dragenter', onDragEnter);
-      el.addEventListener('dragover',  onDragOver);
-      el.addEventListener('dragleave', onDragLeave);
-      el.addEventListener('drop',     onDrop);
-      return () => {
-        el.removeEventListener('dragenter', onDragEnter);
-        el.removeEventListener('dragover',  onDragOver);
-        el.removeEventListener('dragleave', onDragLeave);
-        el.removeEventListener('drop',     onDrop);
-      };
-    }, [files]);
+ const sendMaterial = (e: React.FormEvent) => {
+   e.preventDefault();
+   if (!text && files.length === 0) return;
+   const fd = new FormData();
+   if (text) fd.append('text', text);
+   files.forEach(f => fd.append('file', f));
+   addMessage.mutate(fd);
+   setText(''); setFiles([]);
+ };
 
-  // 5) отправка
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text && files.length === 0) return;
+  // — Редактирование
+const onStartEdit = (m: RoomMessage) => {
+  setEditingMessage(m);
+  setEditText(m.text ?? '');
+  setEditRemoveIds([]);
+  setEditNewFiles([]);
+};
 
-    const fd = new FormData();
-    if (text.trim()) fd.append('text', text.trim());
-    files.forEach(f => fd.append('file', f));
+const onSaveEdit = async () => {
+  if (!editingMessage) return;
+  const fd = new FormData();
+  fd.append('text', editText);
+  editRemoveIds.forEach(id => fd.append('removeAttachmentIds', id));
+  editNewFiles.forEach(f => fd.append('file', f));
 
-    setUploading(true);
-    try {
-      await api.post(`/rooms/${code}/messages`, fd, {
-        onUploadProgress: evt => {
-          const pct = Math.round((evt.loaded/(evt.total??1))*100);
-          setProgress(pct);
-        },
-      });
-      setText(''); setFiles([]);
-    } catch (err) {
-      console.error(err);
-      alert('Ошибка отправки');
-    } finally {
-      setUploading(false);
-      setProgress(0);
-    }
-  };
-
-  // 6) начать редактирование
- const onStartEdit = (m: RoomMessage) => {
-    setEditingMessage(m);
-    setEditText(m.text ?? '');
-    setEditRemoveIds([]);
-    setEditNewFiles([]);
-  };
-  // 7) сохранить редактирование
-  const onSaveEdit = async () => {
-    if (!editingMessage) return;
-    const fd = new FormData();
-    fd.append('text', editText);
-    editRemoveIds.forEach(id => fd.append('removeAttachmentIds', id));
-    editNewFiles.forEach(f => fd.append('file', f));
-
-    try {
-      const updated: RoomMessage = (await api.patch(
+  try {
+    const updated: RoomMessage = (
+      await api.patch(
         `/rooms/${code}/messages/${editingMessage.id}`,
         fd,
         { headers: { 'Content-Type': 'multipart/form-data' } }
-      )).data;
-      // обновляем в локальном state
-      setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
-      setEditingMessage(null);
-    } catch {
-      alert('Не удалось обновить сообщение');
-    }
-  };
-  // 8) удалить
-const onDelete = async (id: string) => {
-   if (!window.confirm('Подтвердите удаление сообщения')) return;
-   try {
-     // вызываем DELETE /rooms/:code/messages/:messageId
-     await api.delete(`/rooms/${code}/messages/${id}`);
-     // локально удалим сразу, чтобы не ждать WS
-     setMessages(prev => prev.filter(m => m.id !== id));
-   } catch (err) {
-     console.error('Ошибка удаления:', err);
-     alert('Не удалось удалить сообщение');
-   }
- };
+      )
+    ).data;
+    // обновляем локальный стейт
+    setMessages(prev =>
+      prev.map(m => m.id === updated.id ? updated : m)
+    );
+    // и рассылаем в WS
+    socket.emit('messageEdited', updated);
+    setEditingMessage(null);
+  } catch {
+    alert('Не удалось обновить сообщение');
+  }
+};
 
-  const renderAttachment = (url: string) => {
-    const full = `http://localhost:3001/rooms/files/${url}`;
-    const ext = url.split('.').pop()!;
-    const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
-    return isImg
-      ? <img key={url} src={full} className="max-h-48 mt-2 rounded border" />
-      : <a key={url} href={full} download className="block text-blue-600">📄 {url}</a>;
-  };
-
-   // 4) Функция отправки материалов
-  const sendMaterial = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text && files.length === 0) return;
-    const fd = new FormData();
-    if (text)       fd.append('text', text);
-    files.forEach(f => fd.append('file', f));
-    try {
-      await api.post(`/rooms/${code}/messages`, fd);
-      setText(''); setFiles([]);
-    } catch {
-      alert('Ошибка отправки');
-    }
+  // — Удаление через хук
+  const onDelete = (id: string) => {
+    if (!window.confirm('Подтвердить удаление?')) return;
+    api.delete(`/rooms/${code}/messages/${id}`)
+      .then(() => {
+        setMessages(prev => prev.filter(m => m.id !== id));
+        socket.emit('deleteMessage', { roomCode: code, messageId: id });
+      })
+      .catch(() => alert('Не удалось удалить сообщение'));
   };
 
    return (

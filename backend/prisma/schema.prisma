@@ -73,13 +73,14 @@ model Message {
   authorId      String?
   text          String?
   createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @default(now()) @updatedAt
   roomId        String?
   chatSessionId String?
 
   room        Room?        @relation(fields: [roomId], references: [id])
   chatSession ChatSession? @relation(fields: [chatSessionId], references: [id])
   author      User?        @relation("UserMessages", fields: [authorId], references: [id])
-  attachments Attachment[]  // ← новые вложения
+  attachments Attachment[]  
 }
 
 model Attachment {

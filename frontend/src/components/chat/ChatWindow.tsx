@@ -1,33 +1,31 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
 import api from '../../api';
 import DOMPurify from 'dompurify';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { useAuth } from '../../auth/AuthContext';
 import EditMessageModal, { Attachment } from './EditMessageModal';
+import { useChatSocket, ChatMessage } from '../../hooks/useChatSocket';
 
-type Message = {
-  id: string;
-  text?: string;
-  author?: { id: string; email: string };
-  attachments?: Attachment[];
-  createdAt: string;
-  isTemp?: boolean;
-};
+import {
+  List,
+  AutoSizer,
+  CellMeasurer,
+  CellMeasurerCache,
+  ListRowProps,
+} from 'react-virtualized';
+
 
 interface Props {
   sessionId: string;
   setUnreadCounts: React.Dispatch<React.SetStateAction<Record<string, number>>>;
 }
 
+
 export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
   const { user } = useAuth();
 
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [text, setText] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
-  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [editText, setEditText] = useState('');
   const [editRemoveIds, setEditRemoveIds] = useState<string[]>([]);
   const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
@@ -37,49 +35,50 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const socketRef = useRef<Socket | null>(null);
+
+  const cache = useRef(new CellMeasurerCache({ fixedWidth: true, defaultHeight: 100 }));
+  const listRef = useRef<List>(null);
+  
+
+  const {
+    messages,
+    setMessages,
+    socket,
+    typing,           // <- новый флаг “печатает”
+    emitTyping,       // <- чтобы эмитить “начал печатать”
+    emitStopTyping,   // <- чтобы эмитить “прекратил печатать”
+    emitRead,         // <- чтобы эмитить “прочитано”
+  } = useChatSocket(sessionId, console.error);
+
+  const [text, setText] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+
+    useEffect(() => {
+    if (!messages.length) return;
+    const unread = messages
+      .filter(m => !(m.readBy||[]).includes(user!.id))
+      .map(m => m.id);
+    if (unread.length) emitRead(unread);
+  }, [messages]);
 
   // 1) Загрузка истории сообщений
-  useEffect(() => {
-    api
-      .get<Message[]>(`/chats/${sessionId}/messages`)
-      .then(res => {
-        setMessages(res.data);
-        setUnreadCounts(prev => ({ ...prev, [sessionId]: 0 }));
-      })
-      .catch(console.error);
-  }, [sessionId, setUnreadCounts]);
+useEffect(() => {
+  api.get<ChatMessage[]>(`/chats/${sessionId}/messages`)
+    .then(res => {
+      // просто сетим ровно то, что пришло
+      setMessages(res.data);
+      setUnreadCounts(prev => ({ ...prev, [sessionId]: 0 }));
 
-  // 2) WebSocket
-  useEffect(() => {
-    const sock = io(`http://localhost:3001/chats/${sessionId}`, {
-      transports: ['websocket'],
-    });
-    socketRef.current = sock;
-    sock.emit('joinSession', sessionId);
+      setTimeout(() => {
+              if (listRef.current && res.data.length > 0) {
+                listRef.current.scrollToRow(res.data.length - 1);
+              }
+            }, 0);
+          })
+          .catch(console.error);
+      }, [sessionId, setMessages, setUnreadCounts]);
 
-    sock.on('chatMessage', msg => {
-      setMessages(prev => {
-        // убрать все temp-сообщения
-        prev
-          .filter(m => m.isTemp && m.attachments)
-          .flatMap(m => m.attachments!)
-          .forEach(att => URL.revokeObjectURL(att.url));
-        const noTemp = prev.filter(m => !m.isTemp);
-        return [...noTemp, msg];
-      });
-    });
-    sock.on('chatEdited', msg => {
-      setMessages(prev => prev.map(m => (m.id === msg.id ? msg : m)));
-    });
-    sock.on('chatDeleted', id => {
-      setMessages(prev => prev.filter(m => m.id !== id));
-    });
 
-    return () => {
-      sock.disconnect();
-    };
-  }, [sessionId]);
 
   // 3) Скролл вниз
   useEffect(() => {
@@ -132,7 +131,7 @@ const send = async (e: React.FormEvent) => {
   // Собираем временное сообщение для прелоада
   const now = new Date().toISOString();
   const tempId = `temp-${Date.now()}`;
-  const tempMsg: Message = {
+  const tempMsg: ChatMessage = {
     id: tempId,
     isTemp: true,
     text: text.trim(),
@@ -153,7 +152,7 @@ const send = async (e: React.FormEvent) => {
   setUploading(true);
   try {
     // Отправляем на сервер и ждём реального сообщения в ответе
-    const res = await api.post<Message>(
+    const res = await api.post<ChatMessage>(
       `/chats/${sessionId}/messages`,
       fd,
       {
@@ -183,7 +182,7 @@ const send = async (e: React.FormEvent) => {
   };
 
   // 6) Начало редактирования
-  const onStartEdit = (m: Message) => {
+  const onStartEdit = (m: ChatMessage) => {
     setEditingMessage(m);
     setEditText(m.text || '');
     setEditRemoveIds([]);
@@ -209,7 +208,7 @@ const send = async (e: React.FormEvent) => {
     editNewFiles.forEach(f => fd.append('newFiles', f));
 
     try {
-       const updated: Message = (await api.patch(
+       const updated: ChatMessage = (await api.patch(
         `/chats/${sessionId}/messages/${editingMessage!.id}`,  // non-null assertion
          fd,
         { headers: { 'Content-Type': 'multipart/form-data' } }
@@ -224,7 +223,7 @@ const send = async (e: React.FormEvent) => {
 
   // 8) Удаление
   const deleteMsg = (id: string) => {
-    socketRef.current?.emit('chatDeleted', { sessionId, messageId: id });
+    socket.emit('chatDeleted', { sessionId, messageId: id });
   };
 
   // Вспомогательные функции
@@ -252,8 +251,13 @@ const send = async (e: React.FormEvent) => {
       </a>
     );
   };
+
+
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
   return (
     <div ref={containerRef} className="flex flex-col h-full relative">
+ 
       {/* Drag-overlay для формы отправки */}
       {dragCounter > 0 && (
         <div className="absolute inset-0 bg-black bg-opacity-20 border-4 border-dashed border-indigo-600 z-10 flex items-center justify-center">
@@ -261,73 +265,158 @@ const send = async (e: React.FormEvent) => {
         </div>
       )}
 
-      {/* Список сообщений */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map(m => (
-          <div key={m.id} className="relative bg-white p-3 rounded shadow-sm">
-            {/* Автор и время */}
-            <div className="text-sm text-gray-500 mb-1">
-              {m.author?.email ?? 'Гость'} — {new Date(m.createdAt).toLocaleString()}
-            </div>
+<div ref={containerRef} className="relative flex flex-col h-full">
+  {/* Виртуализованный список сообщений */}
+  <div className="flex-1 relative">
+    <AutoSizer>
+      {({ height, width }) => (
+      <List
+      ref={listRef}
+          width={width}
+          height={height}
+          rowCount={messages.length}
+          rowHeight={cache.current.rowHeight}
+          deferredMeasurementCache={cache.current}
+          overscanRowCount={5}
+             // — Условный автоскролл вниз:
+             onScroll={({ scrollTop, scrollHeight, clientHeight }) => {
+               const atBot = scrollHeight - scrollTop - clientHeight < 20;
+               setIsAtBottom(atBot);
+             }}
+             scrollToIndex={isAtBottom ? messages.length - 1 : undefined}
+             scrollToAlignment="end"
+          rowRenderer={({ index, key, parent, style }) => {
+            const m = messages[index];
+            return (
+              <CellMeasurer
+                key={key}
+                cache={cache.current}
+                parent={parent}
+                columnIndex={0}
+                rowIndex={index}
+              >
+                {({ registerChild }) => (
+                  <div
+                    ref={registerChild}
+                    style={style}
+                    className="relative bg-white p-3 pb-6 rounded shadow-sm"
+                  >
+                    {/* Автор и время */}
+                      <div className="text-sm text-gray-500 mb-1 flex items-center">
+                        <span>
+                          {m.author?.email ?? 'Гость'} — {new Date(m.createdAt).toLocaleString()}
+                        </span>
+                        {m.updatedAt && m.updatedAt !== m.createdAt && (
+                          <span className="ml-2 italic text-xs text-gray-400">(изменено)</span>
+                        )}
+                      </div>
 
-            {/* Текст */}
-            {m.text && (
-              <div
-                className="prose"
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(m.text) }}
-              />
-            )}
+                    {/* Текст */}
+                    {m.text && (
+                      <div
+                        className="prose"
+                        dangerouslySetInnerHTML={{
+                          __html: DOMPurify.sanitize(m.text),
+                        }}
+                      />
+                    )}
+                    {/* Вложения */}
+                      {m.attachments?.map(att => {
+                        const src = att.url.startsWith('blob:')
+                          ? att.url
+                          : `http://localhost:3001/rooms/files/${att.url}`;
+                        const ext = att.url.split('.').pop()!.toLowerCase();
+                        const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
 
-            {/* Вложения */}
-            {m.attachments?.map(att => {
-              if (att.url.startsWith('blob:')) {
-                // временные blob-превью
-                return (
-                  <img
-                    key={att.id}
-                    src={att.url}
-                    alt="preview"
-                    className="max-h-48 mt-2 rounded border"
-                  />
-                );
-              }
-              return renderAttachment(att.url);
-            })}
+                        if (!isImg) {
+                          return renderAttachment(att.url);
+                        }
 
-            {/* Кнопки редактирования/удаления */}
-            {m.author?.id === user?.id && !m.isTemp && !editingMessage && (
-              <div className="absolute top-2 right-2 flex space-x-1">
-                <button
-                  onClick={() => onStartEdit(m)}
-                  className="text-blue-600 hover:text-blue-800"
-                  title="Редактировать"
-                >
-                  ✏️
-                </button>
-                <button
-                  onClick={() => deleteMsg(m.id)}
-                  className="text-red-600 hover:text-red-800"
-                  title="Удалить"
-                >
-                  🗑️
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-        <div ref={bottomRef} />
-      </div>
+                        return (
+                          <img
+                            key={att.id}
+                            src={src}
+                            alt=""
+                            className="max-h-48 mt-2 rounded border"
+                            onLoad={() => {
+                              cache.current.clear(index, 0);
+                              listRef.current?.recomputeRowHeights(index);
+                            }}
+                          />
+                        );
+                      })}
+
+                     {/* Счётчик прочитавших */}
+                      {m.readBy && m.readBy.length > 0 && (
+                        <div className="mt-1 text-xs text-green-600">
+                          Прочитали: {m.readBy.length}
+                        </div>
+                      )}
+                      
+                    {/* Кнопки */}
+                   {m.author?.id === user?.id && !m.isTemp && !editingMessage && (
+                     <div className="absolute top-2 right-2 flex space-x-1">
+                       <button
+                         onClick={() => onStartEdit(m)}
+                         className="text-blue-600 hover:text-blue-800"
+                         title="Редактировать"
+                       >
+                         ✏️
+                       </button>
+                       <button
+                         onClick={() => deleteMsg(m.id)}
+                         className="text-red-600 hover:text-red-800"
+                         title="Удалить"
+                       >
+                         🗑️
+                       </button>
+                     </div>
+                   )}
+                  </div>
+                )}
+              </CellMeasurer>
+            );
+          }}
+        />
+      )}
+    </AutoSizer>
+  </div>
+
+    {typing && (
+    <div
+      className="
+        absolute left-4
+        bottom-[4.5rem]      /* чуть выше формы (4.5rem = 72px примерно) */
+        bg-white
+        px-3 py-1
+        rounded
+        shadow
+        text-sm italic text-gray-600
+        z-10
+      "
+    >
+      Собеседник печатает…
+    </div>
+  )}
 
       {/* Форма нового сообщения */}
       <form onSubmit={send} className="bg-white border-t p-4 flex flex-col space-y-2">
         <ReactQuill
           theme="snow"
           value={text}
-          onChange={setText}
+          onChange={value => {
+            setText(value);
+            emitTyping();
+            clearTimeout((window as any).__stopTypingTimer);
+            ;(window as any).__stopTypingTimer = setTimeout(() => {
+              emitStopTyping();
+            }, 1000);
+          }}
           modules={{ toolbar: [['bold', 'italic'], ['link'], ['clean']] }}
           className="h-24"
           placeholder="Введите сообщение..."
         />
+
 
         <div className="flex items-center space-x-2">
           <input
@@ -368,7 +457,7 @@ const send = async (e: React.FormEvent) => {
           <div className="flex flex-wrap gap-2 mt-2">{renderPreview()}</div>
         )}
       </form>
-
+</div>
       {/* Модалка редактирования */}
       {editingMessage && (
         <EditMessageModal
