@@ -55,6 +55,9 @@ model Room {
   messages     Message[]
   members      RoomMember[]
   chatSessions ChatSession[]
+
+  bgColor    String?   @default("#FFFFFF")
+  bgImageUrl String? 
 }
 
 model RoomMember {

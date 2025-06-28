@@ -16,8 +16,9 @@ import {
   DefaultValuePipe,
   ParseArrayPipe,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
+import { UpdateRoomSettingsDto } from './dto/update-room-settings.dto';
 import { join } from 'path';
 import { Response } from 'express';
 
@@ -29,6 +30,7 @@ import { CreateRoomDto } from './dto/create-room.dto';
 import { PostMessageDto } from './dto/post-message.dto';
 import { RoomsService } from './rooms.service';
 import { RoomsGateway } from './rooms.gateway';
+
 
 
 
@@ -69,9 +71,11 @@ export class RoomsController {
    * Пустой @UseGuards() сбрасывает глобальный RolesGuard и JwtAuthGuard.
    */
   @UseGuards()
-  @Get(':code')
-  async getRoom(@Param('code') code: string) {
-    return this.rooms.findByCode(code);
+    @Get(':code')
+   async getRoom(@Param('code') code: string) {
+    const room = await this.rooms.findByCode(code);
+    const { bgColor } = await this.rooms.getSettingsByCode(code);
+    return { ...room, bgColor };
   }
 
   /** Отправка сообщения + файл (только авторизованные) */
@@ -168,6 +172,21 @@ export class RoomsController {
     this.gateway.server.to(code).emit('messageEdited', updated);
     return updated;
   }
+
+ /**
+  * Обновить цвет и/или фон комнаты
+  */
+  @Patch(':code/settings')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('TEACHER', 'ADMIN')
+  async updateSettings(
+    @Param('code') code: string,
+    @Body() dto: UpdateRoomSettingsDto,
+  ) {
+    const updated = await this.rooms.updateSettings(code, dto);
+    return updated;
+  }
+ 
 
   /** Скачать файл по имени */
   @UseGuards()  // тоже открытый эндпоинт

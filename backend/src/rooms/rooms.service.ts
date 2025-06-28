@@ -4,6 +4,7 @@ import { PrismaClient, Prisma, Room, RoomMember, Message } from '@prisma/client'
 import { customAlphabet } from 'nanoid';
 import { Express } from 'express';
 import { v4 as uuid } from 'uuid';
+import { UpdateRoomSettingsDto } from './dto/update-room-settings.dto';
 
 const nanoid = customAlphabet(
   '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
@@ -224,6 +225,29 @@ async getOrCreateSessionForStudent(code: string, studentId: string) {
     });
 
     return updated;
+  }
+
+async updateSettings(
+  code: string,
+  dto: { bgColor?: string; title?: string },
+): Promise<{ bgColor: string; title: string }> {
+  return this.prisma.room.update({
+    where: { code },
+    data: {
+      ...(dto.bgColor !== undefined ? { bgColor: dto.bgColor } : {}),
+      ...(dto.title     !== undefined ? { title: dto.title }     : {}),
+    },
+    select: { bgColor: true, title: true },
+  });
+}
+
+  async getSettingsByCode(code: string): Promise<{ bgColor: string }> {
+    const room = await this.prisma.room.findUnique({
+      where: { code },
+      select: { bgColor: true },
+    });
+    if (!room) throw new NotFoundException('Комната не найдена');
+    return room;
   }
 }
 

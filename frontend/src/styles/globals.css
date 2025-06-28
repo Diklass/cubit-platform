@@ -1,6 +1,37 @@
+@import './react-colorful.css';
+:root {
+  /* ===== Цветовая схема (Expressive) ===== */
+  --md-sys-color-primary: #6750A4;
+  --md-sys-color-on-primary: #FFFFFF;
+  --md-sys-color-secondary: #625B71;
+  --md-sys-color-on-secondary: #FFFFFF;
+  --md-sys-color-background: #EFF1F5;
+  --md-sys-color-surface: #FFFFFF;
+  --md-sys-color-surface-container-high: #F0F5FA;
+  --md-sys-color-surface-container-low: #ECEAF6;
+  --md-sys-color-on-surface: #1D1B1E;
+  /* …другие токены по нужде… */
+
+  /* ===== Скругления ===== */
+  --md-sys-shape-corner-small: 4px;
+  --md-sys-shape-corner-medium: 8px;
+  --md-sys-shape-corner-large: 12px;
+  --md-sys-shape-corner-extra-large: 32px;
+
+  /* ===== Тени (примерные) ===== */
+  --md-sys-elevation-level1: 0px 1px 2px rgba(0,0,0,0.12), 0px 1px 3px rgba(0,0,0,0.20);
+  --md-sys-elevation-level2: 0px 3px 6px rgba(0,0,0,0.12), 0px 3px 6px rgba(0,0,0,0.24);
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden; 
+}
 
 body {
   @apply bg-gray-50 text-gray-800;

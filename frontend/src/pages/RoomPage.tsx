@@ -10,15 +10,32 @@ import { useParams } from 'react-router-dom';
 import copy from 'copy-to-clipboard';
 import { ChatWindow } from '../components/chat/ChatWindow';
 import { useRoomSocket, RoomMessage } from '../hooks/useRoomSocket';
+import { RoomHeader } from '../components/RoomHeader';
+import { RoomSettingsModal } from '../components/RoomSettingsModal';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+import { AxiosResponse } from 'axios';
+
+
+  interface RoomInfo {
+    id: string;
+    code: string;
+    title: string;
+    ownerId: string;
+    bgColor: string;
+  }
+
+ interface RoomSettings {
+ title: string;
+ bgColor: string;
+ }
 
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   if (!code) return null;
   const { user } = useAuth();
   const queryClient = useQueryClient();
-
 
 
   const [text, setText] = useState('');
@@ -44,20 +61,69 @@ export function RoomPage() {
   const [showChat, setShowChat] = useState(false);
   const [showCodeBig, setShowCodeBig] = useState(false);
 
+    // Состояние настроек фона
+     const [settings, setSettings] = useState<RoomSettings>({
+     title: '',
+     bgColor: '#FFFFFF',
+    });
+    const [settingsOpen, setSettingsOpen] = useState(false);
+
+    // для примера, обёртки для кнопок:
+  const handleEdit = () => setSettingsOpen(true); /* откроет модалку настроек */;
+  const handleFullscreen = () => setShowCodeBig(v => !v);
+  const handleChat = () => setShowChat(v => !v);
+
     // Хук вытаскивает: messages, setMessages и socket
   const { messages, setMessages, socket } = useRoomSocket({
     code,
     onError: console.error
   });
 
+     // Хук для загрузки информации о комнате (включая bgColor)
+ const { data: info } = useQuery<RoomInfo, Error>({
+   queryKey: ['roomInfo', code],
+   queryFn: () => api.get<RoomInfo>(`/rooms/${code}`).then(r => r.data),
+   enabled: !!code,
+ });
+
  // 1) Подгружаем историю через React Query (с пушем в локальный setMessages)
  const { data: queriedMessages, isLoading: loadingMessages } = useQuery<RoomMessage[], Error>({
    queryKey: ['roomMessages', code],
    queryFn: () =>
      api
-       .get<{ messages: RoomMessage[] }>(`/rooms/${code}`)
-       .then(res => res.data.messages.reverse()),
+     .get<{ messages: RoomMessage[] }>(`/rooms/${code}`)
+     .then(res => res.data.messages.reverse()),
  });
+
+
+  const roomTitle = info?.title ?? code!;
+
+  useEffect(() => {
+    if (info) 
+      setSettings({ title: info.title, bgColor: info.bgColor });
+  }, [info]);
+
+  // мутация для сохранения нового цвета
+const saveSettings = useMutation<
+  { bgColor: string },      // TData — что возвращает сервер
+  Error,                    // TError
+  RoomSettings              // TVariables — что мы передаём в mutate()
+>({
+  mutationFn: async (newSettings: RoomSettings): Promise<{ bgColor: string }> =>
+    api
+      .patch<{ bgColor: string; title: string }>(
+        `/rooms/${code}/settings`,
+        newSettings,
+      )
+      .then(res => res.data),
+  onSuccess: () => {
+    // теперь TS не ругается — передаём объект с queryKey
+    queryClient.invalidateQueries({ queryKey: ['roomInfo', code] });
+    setSettingsOpen(false);
+  },
+});
+
+
 
  useEffect(() => {
    if (queriedMessages) {
@@ -90,9 +156,7 @@ export function RoomPage() {
 }, [isTeacher, showChat, code]);
 
   // — Автоскролл вниз
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+
 
   // — Drag&Drop (создание нового сообщения)
   useEffect(() => {
@@ -128,6 +192,8 @@ export function RoomPage() {
    },
    onError: () => alert('Ошибка отправки'),
  });
+
+ 
 
  const sendMaterial = (e: React.FormEvent) => {
    e.preventDefault();
@@ -185,96 +251,144 @@ const onSaveEdit = async () => {
       .catch(() => alert('Не удалось удалить сообщение'));
   };
 
-   return (
-    <div className="flex flex-col h-screen">
-      {/* HEADER */}
-      <header className="sticky top-0 z-20 flex items-center justify-between bg-gray-100 p-2 border-b">
-        <div className="flex items-center space-x-2">
-          <button onClick={()=>copy(code)}>📋</button>
-          <code>{code}</code>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button onClick={()=>setShowCodeBig(v=>!v)}>⛶</button>
-          <div className="relative">
-            <button onClick={()=>setShowChat(v=>!v)}>💬</button>
-            {!showChat && Object.values(unreadCounts).some(c=>c>0) && (
-              <span className="absolute top-0 right-0 h-2 w-2 bg-red-600 rounded-full"/>
-            )}
-          </div>
-          {isTeacher && <button>⚙️</button>}
-        </div>
-      </header>
 
-      {/* BIG CODE */}
-      {showCodeBig && (
-        <div className="fixed inset-0 bg-white p-8 overflow-auto z-50">
-          <button onClick={()=>setShowCodeBig(false)}>✕</button>
-          <pre>{code}</pre>
-        </div>
-      )}
+  const headerClass = "sticky top-0 z-20 bg-m3-surf px-6 py-4 shadow-sm";
+  const footerClass = "sticky bottom-0 z-10 bg-m3-surf border-t p-4";
 
-      {/* MAIN */}
+  
+
+// --- РЕНДЕР ---
+  return (
+    <div className="flex flex-col h-full bg-m3-bg overflow-auto">   
+    <div className="mt-[30px]"></div>    
+     {/* === ROOM HEADER BANNER === */}
+       <RoomHeader
+         name={roomTitle}           
+         code={code!}
+         onEdit={() => setSettingsOpen(true)}
+         onFullscreen={handleFullscreen}
+         onChat={handleChat}
+         bgColor={settings.bgColor}
+       />
+
+       
+
+          {/* === ROOM SETTINGS MODAL === */}
+          <RoomSettingsModal
+        initial={settings}
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSave={newSettings => {
+          saveSettings.mutate({ title: newSettings.title, bgColor: newSettings.bgColor });
+        }}
+      />
+
+    {/* === BIG CODE MODAL === */}
+    {showCodeBig && (
+      <div className="fixed inset-0 z-50 bg-m3-surf p-8 overflow-auto">
+        <button onClick={() => setShowCodeBig(false)}>✕</button>
+        <pre className="mt-4 p-4 bg-m3-bg rounded-lg">{code}</pre>
+      </div>
+    )}
+
+    {/* === MAIN CONTENT (между шапкой и футером) === */}
+    <div className="px-6 py-4">
       {showChat ? (
         // — ЧАТ —
-        <div className="flex flex-1 overflow-hidden">
-          {isTeacher && (
-            <div className="w-1/3 border-r p-4 overflow-y-auto" style={{ minHeight: 0 }}>
-              <h2>Ученики</h2>
+        <div className="flex flex-1">
+          {/* список чатов (только для учителя) */}
+         {isTeacher && (
+           <aside className="w-1/3 bg-m3-surf p-4">
+              <h2 className="mb-2 text-lg font-semibold">Ученики</h2>
               {chatSessions.map(s => (
                 <div
                   key={s.id}
-                  onClick={()=>{
+                  onClick={() => {
                     setChatSessionId(s.id);
-                    setUnreadCounts(u=>({ ...u,[s.id]:0 }));
+                    setUnreadCounts(u => ({ ...u, [s.id]: 0 }));
                   }}
-                  className={`p-2 cursor-pointer rounded ${s.id===chatSessionId?'bg-gray-200':''}`}
+                  className={`
+                    mb-2 px-3 py-2 rounded-lg cursor-pointer 
+                    ${s.id === chatSessionId ? 'bg-gray-200' : 'hover:bg-gray-100'}
+                  `}
                 >
                   {s.student?.email}
-                  {unreadCounts[s.id]>0 && <span className="ml-2 text-red-600">●</span>}
+                  {unreadCounts[s.id] > 0 && (
+                    <span className="ml-2 text-red-600">●</span>
+                  )}
                 </div>
               ))}
-            </div>
+            </aside>
           )}
-          <div className="flex-1 overflow-y-auto" style={{ minHeight: 0 }}>
-            {chatSessionId
-              ? <ChatWindow sessionId={chatSessionId} setUnreadCounts={setUnreadCounts}/>
-              : <div className="p-4 text-center">Выберите чат</div>}
+
+          {/* окно самого чата */}
+          <div
+            className="flex-1 bg-m3-surf overflow-y-auto"
+            style={{ minHeight: 0 }}
+          >
+            {chatSessionId ? (
+              <ChatWindow
+                sessionId={chatSessionId}
+                setUnreadCounts={setUnreadCounts}
+              />
+            ) : (
+              <div className="p-6 text-center text-gray-500">
+                Выберите чат
+              </div>
+            )}
           </div>
         </div>
       ) : (
         // — МАТЕРИАЛЫ —
-        <div ref={containerRef} className="flex-1 flex flex-col relative overflow-hidden">
+        <div ref={containerRef} className="flex flex-1 flex-col min-h-0">
           {dragCounter > 0 && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-black bg-opacity-20 border-4 border-dashed border-indigo-600">
               <span className="text-white">Перетащите файлы сюда</span>
             </div>
           )}
 
-          <div className="overflow-auto p-4 space-y-4">
+          <div className="flex-1 overflow-auto p-6 space-y-4">
             {messages.map(m => (
-              <div key={m.id} className="relative bg-white p-3 rounded shadow-sm">
-                <div className="text-xs text-gray-500 mb-1">
-                  {m.author?.email||'Гость'} — {new Date(m.createdAt).toLocaleString()}
+              <div
+                key={m.id}
+                className="relative bg-surface p-4 rounded-lg shadow-level1">
+                <div className="text-xs text-gray-500 mb-2">
+                  {m.author?.email || 'Гость'} —{' '}
+                  {new Date(m.createdAt).toLocaleString()}
                 </div>
                 {m.text && (
-                  <div className="prose" dangerouslySetInnerHTML={{
-                    __html:DOMPurify.sanitize(m.text!)
-                  }} />
+                  <div
+                    className="prose mb-2"
+                    dangerouslySetInnerHTML={{
+                      __html: DOMPurify.sanitize(m.text!),
+                    }}
+                  />
                 )}
                 {m.attachments?.map(att => {
                   const url = `http://localhost:3001/rooms/files/${att.url}`;
                   const ext = att.url.split('.').pop()!.toLowerCase();
                   const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
-                  return isImg
-                    ? <img key={att.id} src={url} className="max-h-48 mt-2 rounded border"/>
-                    : <a key={att.id} href={url} download className="block text-blue-600 mt-2">
-                        📄 {att.url}
-                      </a>;
+                  return isImg ? (
+                    <img
+                      key={att.id}
+                      src={url}
+                      className="max-h-48 mt-2 rounded-lg border"
+                    />
+                  ) : (
+                    <a
+                      key={att.id}
+                      href={url}
+                      download
+                      className="block text-blue-600 mt-2"
+                    >
+                      📄 {decodeURIComponent(att.url)}
+                    </a>
+                  );
                 })}
-                                  {/* Кнопки редактирования/удаления для автора */}
-                 {/* Кнопки редактирования/удаления — только для автора сообщения */}
+
+                {/* кнопки редактирования/удаления */}
                 {m.author?.id === user?.id && !editingMessage && (
-                  <div className="absolute top-2 right-2 flex space-x-1">
+                  <div className="absolute top-2 right-2 flex space-x-2">
                     <button
                       onClick={() => onStartEdit(m)}
                       className="text-blue-600 hover:text-blue-800"
@@ -292,76 +406,87 @@ const onSaveEdit = async () => {
                   </div>
                 )}
               </div>
-              
             ))}
+            <div ref={bottomRef} />
           </div>
+        </div>
+      )}
+    </div>
 
-
-      {isTeacher && (
-        <form onSubmit={sendMaterial} className="bg-white border-t p-4 flex flex-col space-y-2">
-          <ReactQuill
-            value={text}
-            onChange={setText}
-            modules={{ toolbar:[['bold','italic'],['link'],['clean']] }}
-            className="h-24"
-          />
-
-      <div className="flex items-center space-x-2">
-              <input
-                id="roomFiles"
-                type="file"
-                multiple
-                className="hidden"
-                onChange={e => {
-                  const chosen = Array.from(e.target.files || []);
-                  setFiles(prev => [...prev, ...chosen]);
-                }}
-              />
-              <label
-                htmlFor="roomFiles"
-                className="bg-gray-200 p-2 rounded cursor-pointer select-none"
-              >+</label>
-
-              <button
-                type="submit"
-                className="px-4 py-2 bg-indigo-600 text-white rounded"
-              >Отправить</button>
-            </div> 
-        {/* превью выбранных файлов */}
+    {/* === FOOTER: форма отправки (только для учителя) === */}
+    {isTeacher && (
+      <form
+        onSubmit={sendMaterial}
+        className="sticky bottom-0 bg-surfHigh border-t border-surfLow p-4"
+      >
+        <ReactQuill
+          value={text}
+          onChange={setText}
+          modules={{ toolbar: [['bold','italic'], ['link'], ['clean']] }}
+          className="h-24 bg-white rounded-lg"
+        />
+        <div className="flex items-center mt-3">
+          <label
+            htmlFor="roomFiles"
+            className="bg-surface-container-low
+        p-2 rounded-md
+        cursor-pointer
+        hover:bg-surfLow"
+ >📎</label>
+    <input id="roomFiles" type="file" className="hidden" multiple />
+    <button
+      type="submit"
+      className="
+        ml-auto
+        bg-primary text-onPrimary
+        px-6 py-2
+        rounded-full
+        shadow-level2
+        hover:opacity-90
+      "
+    >Отправить</button>
+        </div>
         {files.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
             {files.map((f, i) => (
-              <div key={i} className="bg-gray-100 px-2 py-1 rounded flex items-center space-x-2">
+              <div
+                key={i}
+                className="bg-gray-100 px-3 py-1 rounded-lg flex items-center space-x-2"
+              >
                 <span className="text-sm break-all">{f.name}</span>
-                <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))}>✕</button>
+                <button
+                  onClick={() =>
+                    setFiles(prev => prev.filter((_, j) => j !== i))
+                  }
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
         )}
-        </form>
-          )}
-          {editingMessage && (
-  <EditMessageModal
-    messageId={editingMessage.id}
-    initialText={editText}
-    existingAttachments={editingMessage.attachments || []}
-    removeIds={editRemoveIds}
-    newFiles={editNewFiles}
-    onTextChange={setEditText}
-    onToggleRemove={id =>
-      setEditRemoveIds(ids =>
-        ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
-      )
-    }
-    onAddNewFiles={files => setEditNewFiles(prev => [...prev, ...files])}
-    onClose={() => setEditingMessage(null)}
-    onSave={onSaveEdit}
-  />
-)}
-        </div>
-      )}
-    </div>
-    
-  );
-  
+      </form>
+    )}
+
+    {/* === EDIT MESSAGE MODAL === */}
+    {editingMessage && (
+      <EditMessageModal
+        messageId={editingMessage.id}
+        initialText={editText}
+        existingAttachments={editingMessage.attachments || []}
+        removeIds={editRemoveIds}
+        newFiles={editNewFiles}
+        onTextChange={setEditText}
+        onToggleRemove={id =>
+          setEditRemoveIds(ids =>
+            ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
+          )
+        }
+        onAddNewFiles={files => setEditNewFiles(prev => [...prev, ...files])}
+        onClose={() => setEditingMessage(null)}
+        onSave={onSaveEdit}
+      />
+    )}
+  </div>
+);
 }

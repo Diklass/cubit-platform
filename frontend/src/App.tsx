@@ -10,6 +10,7 @@ import { RoomJoin } from './pages/RoomJoin';
 import { RoomPage } from './pages/RoomPage';
 import ProfilePage from './pages/ProfilePage';
 
+
 function App() {
   return (
     <Routes>
@@ -28,10 +29,9 @@ function App() {
         path="/rooms"
         element={<PrivateRoute><Layout><RoomJoin /></Layout></PrivateRoute>}
       />
-      <Route
-        path="/rooms/:code"
-        element={<PrivateRoute><Layout><RoomPage /></Layout></PrivateRoute>}
-      />
+      <Route 
+      path="/rooms/:code" 
+      element={<PrivateRoute><Layout><RoomPage /></Layout></PrivateRoute>} />
       <Route
         path="/profile"
         element={<PrivateRoute><Layout><ProfilePage /></Layout></PrivateRoute>}
