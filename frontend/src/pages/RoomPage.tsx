@@ -314,7 +314,7 @@ const onSaveEdit = async () => {
 
 
     {/* === MAIN CONTENT (между шапкой и футером) === */}
-    <div className="px-6 pt-1 pb-1 flex-1">
+    <div className="px-2 pt-1 pb-1 flex-1">
       {showChat ? (
         // — ЧАТ —
         <div className="flex flex-1">
