@@ -1,7 +1,7 @@
 // src/components/RoomHeader.tsx
 import React from 'react';
 import fullscreenIcon from '../assets/icons/fullscreen.svg';
-import editIcon       from '../assets/icons/edit.svg';
+import editIcon       from '../assets/icons/setting.svg';
 import chatIcon       from '../assets/icons/chat.svg';
 
   interface RoomHeaderProps {

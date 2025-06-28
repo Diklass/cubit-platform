@@ -13,9 +13,16 @@ import { useRoomSocket, RoomMessage } from '../hooks/useRoomSocket';
 import { RoomHeader } from '../components/RoomHeader';
 import { RoomSettingsModal } from '../components/RoomSettingsModal';
 
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { AxiosResponse } from 'axios';
+
+import 'react-quill/dist/quill.snow.css';
+
+
+import editIcon from '../assets/icons/edit.svg';
+import deleteIcon from '../assets/icons/delete.svg';
 
 
   interface RoomInfo {
@@ -259,7 +266,7 @@ const onSaveEdit = async () => {
 
 // --- РЕНДЕР ---
   return (
-    <div className="flex flex-col h-full bg-m3-bg overflow-auto">   
+    <div className="flex flex-col h-full bg-m3-bg overflow-auto ">   
     <div className="mt-[30px]"></div>    
      {/* === ROOM HEADER BANNER === */}
        <RoomHeader
@@ -285,14 +292,29 @@ const onSaveEdit = async () => {
 
     {/* === BIG CODE MODAL === */}
     {showCodeBig && (
-      <div className="fixed inset-0 z-50 bg-m3-surf p-8 overflow-auto">
-        <button onClick={() => setShowCodeBig(false)}>✕</button>
-        <pre className="mt-4 p-4 bg-m3-bg rounded-lg">{code}</pre>
+      <div className="fixed inset-0 z-[200] bg-black bg-opacity-80 flex items-center justify-center p-4">
+        <div className="bg-surface rounded-lg shadow-xl w-full h-full max-w-[90vw] max-h-[90vh] overflow-auto flex flex-col">
+          <div className="flex justify-between items-center p-4 border-b">
+            <h2 className="text-2xl font-bold text-on-surface">Код комнаты: {code}</h2>
+            <button
+              onClick={() => setShowCodeBig(false)}
+              className="text-on-surface hover:text-danger transition text-xl"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-6">
+            <pre className="text-9xl font-mono text-on-surface text-center break-all">
+              {code}
+            </pre>
+          </div>
+        </div>
       </div>
     )}
 
+
     {/* === MAIN CONTENT (между шапкой и футером) === */}
-    <div className="px-6 py-4">
+    <div className="px-6 pt-1 pb-1 flex-1">
       {showChat ? (
         // — ЧАТ —
         <div className="flex flex-1">
@@ -347,7 +369,7 @@ const onSaveEdit = async () => {
             </div>
           )}
 
-          <div className="flex-1 overflow-auto p-6 space-y-4">
+          <div className="flex-1 overflow-auto p-4 pb-0 space-y-4">
             {messages.map(m => (
               <div
                 key={m.id}
@@ -391,17 +413,17 @@ const onSaveEdit = async () => {
                   <div className="absolute top-2 right-2 flex space-x-2">
                     <button
                       onClick={() => onStartEdit(m)}
-                      className="text-blue-600 hover:text-blue-800"
                       title="Редактировать"
+                      className="p-1 hover:bg-gray-200 rounded"
                     >
-                      ✏️
+                      <img src={editIcon} alt="Редактировать" className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => onDelete(m.id)}
-                      className="text-red-600 hover:text-red-800"
                       title="Удалить"
+                      className="p-1 hover:bg-gray-200 rounded"
                     >
-                      🗑️
+                      <img src={deleteIcon} alt="Удалить" className="w-5 h-5" />
                     </button>
                   </div>
                 )}
@@ -414,59 +436,69 @@ const onSaveEdit = async () => {
     </div>
 
     {/* === FOOTER: форма отправки (только для учителя) === */}
-    {isTeacher && (
-      <form
-        onSubmit={sendMaterial}
-        className="sticky bottom-0 bg-surfHigh border-t border-surfLow p-4"
-      >
-        <ReactQuill
-          value={text}
-          onChange={setText}
-          modules={{ toolbar: [['bold','italic'], ['link'], ['clean']] }}
-          className="h-24 bg-white rounded-lg"
-        />
-        <div className="flex items-center mt-3">
-          <label
-            htmlFor="roomFiles"
-            className="bg-surface-container-low
-        p-2 rounded-md
-        cursor-pointer
-        hover:bg-surfLow"
- >📎</label>
-    <input id="roomFiles" type="file" className="hidden" multiple />
-    <button
-      type="submit"
-      className="
-        ml-auto
-        bg-primary text-onPrimary
-        px-6 py-2
-        rounded-full
-        shadow-level2
-        hover:opacity-90
-      "
-    >Отправить</button>
-        </div>
-        {files.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {files.map((f, i) => (
-              <div
-                key={i}
-                className="bg-gray-100 px-3 py-1 rounded-lg flex items-center space-x-2"
-              >
-                <span className="text-sm break-all">{f.name}</span>
-                <button
-                  onClick={() =>
-                    setFiles(prev => prev.filter((_, j) => j !== i))
-                  }
-                >
-                  ✕
-                </button>
+
+          {isTeacher && (
+        <form
+          onSubmit={sendMaterial}
+          className="sticky bottom-0 w-full px-2 pt-1 pb-0 bg-transparent"
+        >
+          {/* Контейнер редактора и превью */}
+          <div className="bg-white rounded-t-lg border border-gray-300 px-3 pt-5 pb-12 mx-3">
+            {/* Редактор: фиксированная высота, больше места для текста */}
+            <div className="h-[180px]">
+              <ReactQuill
+                value={text}
+                onChange={setText}
+                modules={{
+                  toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ header: 1 }, { header: 2 }],
+                    [{ list: 'ordered' }, { list: 'bullet' }],
+                    [{ size: ['small', false, 'large', 'huge'] }],
+                    ['link'], ['clean'],
+                  ],
+                }}
+                formats={['header','bold','italic','underline','strike','list','bullet','size','link']}
+                placeholder="Введите сообщение..."
+                className="h-full"
+              />
+            </div>
+
+            {/* Превью вложений */}
+            {files.length > 0 && (
+              <div className="flex flex-wrap gap-2 my-2">
+                {files.map((file, idx) => (
+                  <div key={idx} className="bg-gray-100 px-2 py-1 rounded-lg flex items-center space-x-1">
+                    <span className="text-xs break-all">{file.name}</span>
+                    <button onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}>✕</button>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
-      </form>
-    )}
+
+         {/* Контейнер кнопок ниже */}
+          <div className="bg-white rounded-b-lg border border-gray-300 px-3 py-2 mx-3 flex items-center justify-end space-x-4">
+            <input
+              id="roomFiles"
+              type="file"
+              className="hidden"
+              multiple
+              onChange={e => setFiles(Array.from(e.target.files || []))}
+            />
+            <label htmlFor="roomFiles" className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-base font-medium px-4 py-2 rounded">
+              Прикрепить файл
+            </label>
+            <button
+              type="submit"
+              disabled={!text && files.length === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-full font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Отправить
+            </button>
+          </div>
+        </form>
+      )}
 
     {/* === EDIT MESSAGE MODAL === */}
     {editingMessage && (

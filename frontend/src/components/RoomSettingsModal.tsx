@@ -20,15 +20,10 @@ export const RoomSettingsModal: React.FC<Props> = ({
   onClose,
   onSave,
 }) => {
+  const basePresets = ['#6750A4', '#33691E', '#006A67', '#B3261E', '#1E88E5'];
   const [title, setTitle] = useState(initial.title);
   const [bgColor, setBgColor] = useState(initial.bgColor);
-  const [presets, setPresets] = useState<string[]>([
-    '#6750A4',
-    '#33691E',
-    '#006A67',
-    '#B3261E',
-    '#1E88E5',
-  ]);
+  const [userPresets, setUserPresets] = useState<string[]>([]);
 
   const [showPicker, setShowPicker] = useState(false);
   const [tempPickerColor, setTempPickerColor] = useState(initial.bgColor);
@@ -36,6 +31,7 @@ export const RoomSettingsModal: React.FC<Props> = ({
   useEffect(() => {
     setTitle(initial.title);
     setBgColor(initial.bgColor);
+    setTempPickerColor(initial.bgColor);
   }, [initial, isOpen]);
 
   const onAddColorClick = () => {
@@ -44,10 +40,11 @@ export const RoomSettingsModal: React.FC<Props> = ({
   };
 
   const confirmPicker = () => {
-    if (!presets.includes(tempPickerColor)) {
-      setPresets(prev => [...prev, tempPickerColor]);
+    const color = tempPickerColor;
+    if (!basePresets.includes(color) && !userPresets.includes(color)) {
+      setUserPresets(prev => [...prev, color]);
     }
-    setBgColor(tempPickerColor);
+    setBgColor(color);
     setShowPicker(false);
   };
 
@@ -55,11 +52,18 @@ export const RoomSettingsModal: React.FC<Props> = ({
     setShowPicker(false);
   };
 
+  const removeUserPreset = (color: string) => {
+    setUserPresets(prev => prev.filter(c => c !== color));
+    if (bgColor === color) {
+      setBgColor(basePresets[0] || '');
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start justify-center pt-[92px] z-50">
-      <div className="bg-surface rounded-lg shadow-level3 border border-outline w-full max-w-md mx-4 p-6 space-y-6">
+      <div className="relative bg-surface rounded-lg shadow-level3 border border-outline w-full max-w-md mx-4 p-6 space-y-6">
         <h2 className="text-lg font-medium text-on-surface">Настройки комнаты</h2>
 
         {/* Название комнаты */}
@@ -73,7 +77,7 @@ export const RoomSettingsModal: React.FC<Props> = ({
           />
         </div>
 
-        {/* Цвет по умолчанию (квадрат) */}
+        {/* Текущий цвет */}
         <div className="flex items-center space-x-3">
           <label className="font-medium text-on-surface-variant">Текущий цвет:</label>
           <div
@@ -84,9 +88,9 @@ export const RoomSettingsModal: React.FC<Props> = ({
           <span className="text-sm text-on-surface-variant">{bgColor}</span>
         </div>
 
-        {/* Пресеты + кнопка добавить */}
+        {/* Базовые пресеты */}
         <div className="flex flex-wrap gap-3 items-center">
-          {presets.map(color => (
+          {basePresets.map(color => (
             <button
               key={color}
               onClick={() => setBgColor(color)}
@@ -96,6 +100,27 @@ export const RoomSettingsModal: React.FC<Props> = ({
               }`}
             />
           ))}
+        </div>
+
+        {/* Пользовательские пресеты с удалением */}
+        <div className="flex flex-wrap gap-3 items-center">
+          {userPresets.map(color => (
+            <div key={color} className="relative">
+              <button
+                onClick={() => setBgColor(color)}
+                style={{ backgroundColor: color }}
+                className={`w-10 h-10 rounded-full ring-2 transition ${
+                  bgColor === color ? 'ring-primary' : 'ring-transparent'
+                }`}
+              />
+              <button
+                onClick={() => removeUserPreset(color)}
+                className="absolute -top-1 -right-1 bg-white rounded-full w-4 h-4 flex items-center justify-center text-xs"
+              >
+                &minus;
+              </button>
+            </div>
+          ))}
           <button
             onClick={onAddColorClick}
             className="px-3 py-1 border rounded hover:bg-gray-100 transition"
@@ -104,16 +129,18 @@ export const RoomSettingsModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Цветовой пикер */}
+        {/* Цветовой пикер поверх */}
         {showPicker && (
-          <div className="space-y-4">
-            <HexColorPicker
-              color={tempPickerColor}
-              onChange={setTempPickerColor}
-            />
-            <div className="flex justify-end space-x-2">
-              <NavButton onClick={cancelPicker}>Отмена</NavButton>
-              <NavButton onClick={confirmPicker}>OK</NavButton>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+            <div className="bg-surface rounded-lg p-4 space-y-4">
+              <HexColorPicker
+                color={tempPickerColor}
+                onChange={setTempPickerColor}
+              />
+              <div className="flex justify-end space-x-2">
+                <NavButton onClick={cancelPicker}>Отмена</NavButton>
+                <NavButton onClick={confirmPicker}>OK</NavButton>
+              </div>
             </div>
           </div>
         )}
