@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: cubit-backend
+    env: docker
+    repo: https://github.com/Diklass/cubit-platform
+    dockerfilePath: backend/Dockerfile
+    buildFilter:
+      paths:
+        - backend/**
+
+  - type: web
+    name: cubit-frontend
+    env: docker
+    repo: https://github.com/Diklass/cubit-platform
+    dockerfilePath: frontend/Dockerfile
+    buildFilter:
+      paths:
+        - frontend/**
