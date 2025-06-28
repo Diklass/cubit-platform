@@ -3,7 +3,6 @@ services:
     name: cubit-platform
     env: docker
     plan: free
-    repo: https://github.com/Diklass/cubit-platform
     branch: main
     dockerComposeFilePath: ./docker-compose.yml
     buildFilter:
