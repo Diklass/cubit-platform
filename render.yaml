@@ -4,9 +4,10 @@ services:
     env: docker
     plan: free
     repo: https://github.com/Diklass/cubit-platform
-    region: frankfurt
     branch: main
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    buildCommand: ""  # Render сам использует Dockerfile
-    startCommand: ""  # Render сам использует CMD из Dockerfile
+    dockerComposeFilePath: ./docker-compose.yml
+    buildFilter:
+      paths:
+        - ./**
+    autoDeploy: true
+
