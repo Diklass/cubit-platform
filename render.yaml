@@ -10,7 +10,6 @@ services:
     env: docker
     dockerfilePath: backend/Dockerfile
     buildCommand: cd backend && npm ci && npm run build
-    startCommand: npm run start:prod
     envVars:
       - key: DATABASE_URL
         value: postgresql://cubit_db_user:WY625r00RJ6ADWnxoADGi1H6anrdUIVT@dpg-d1g4gb7fte5s73883d5g-a/cubit_db
