@@ -1,18 +1,17 @@
 services:
   - type: web
-    name: cubit-backend
-    env: docker
-    repo: https://github.com/Diklass/cubit-platform
-    dockerfilePath: backend/Dockerfile
-    buildFilter:
-      paths:
-        - backend/**
+    name: cubit-frontend
+    env: static
+    staticPublishPath: /usr/share/nginx/html
+    buildCommand: cd frontend && npm ci && npm run build
+    publishPath: frontend/dist
 
   - type: web
-    name: cubit-frontend
+    name: cubit-backend
     env: docker
-    repo: https://github.com/Diklass/cubit-platform
-    dockerfilePath: frontend/Dockerfile
-    buildFilter:
-      paths:
-        - frontend/**
+    dockerfilePath: backend/Dockerfile
+    buildCommand: cd backend && npm ci && npm run build
+    startCommand: npm run start:prod
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://cubit_db_user:WY625r00RJ6ADWnxoADGi1H6anrdUIVT@dpg-d1g4gb7fte5s73883d5g-a/cubit_db
