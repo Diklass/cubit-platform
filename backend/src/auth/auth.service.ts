@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcryptjs';
+import { Room } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -26,4 +27,16 @@ export class AuthService {
       access_token: this.jwtService.sign(payload),
     };
   }
-}
+
+    /** Генерирует JWT для гостя, заходящего по коду комнаты */
+  async loginAsGuest(room: Room) {
+    const payload = {
+      sub: room.id,
+      role: 'GUEST',           // или Role.GUEST, если импортируете enum
+      code: room.code,         // пригодится на фронтенде
+    };
+    return {
+      access_token: this.jwtService.sign(payload),
+    };
+  }
+ }

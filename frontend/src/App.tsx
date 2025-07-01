@@ -3,38 +3,72 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { PrivateRoute } from './auth/PrivateRoute';
 import Layout from './components/Layout';
 
-import Login from './pages/Login';
+import LoginOrJoin from './pages/LoginOrJoin';
 import Dashboard from './pages/Dashboard';
 import LessonsList from './pages/LessonsList';
 import { RoomJoin } from './pages/RoomJoin';
 import { RoomPage } from './pages/RoomPage';
 import ProfilePage from './pages/ProfilePage';
+import { RoleRoute } from './auth/RoleRoute';
+
 
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/login" element={<Login />} />
+       <Route path="/login" element={<LoginOrJoin />} />
 
       <Route
         path="/dashboard"
-        element={<PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>}
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
+              <Layout><Dashboard /></Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
       />
       <Route
         path="/lessons"
-        element={<PrivateRoute><Layout><LessonsList /></Layout></PrivateRoute>}
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
+              <Layout><LessonsList /></Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
       />
       <Route
         path="/rooms"
-        element={<PrivateRoute><Layout><RoomJoin /></Layout></PrivateRoute>}
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
+              <Layout><RoomJoin /></Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
       />
-      <Route 
-      path="/rooms/:code" 
-      element={<PrivateRoute><Layout><RoomPage /></Layout></PrivateRoute>} />
+      <Route
+        path="/rooms/:code"
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT','GUEST']}>
+              <Layout><RoomPage /></Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
+      />
+
       <Route
         path="/profile"
-        element={<PrivateRoute><Layout><ProfilePage /></Layout></PrivateRoute>}
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
+              <Layout><ProfilePage /></Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
       />
 
       <Route path="*" element={<Layout><div className="p-4">Страница не найдена</div></Layout>} />
