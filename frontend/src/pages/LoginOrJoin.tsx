@@ -1,96 +1,182 @@
-// frontend/src/pages/LoginOrJoin.tsx
+// src/pages/LoginOrJoin.tsx
 import React, { useState } from 'react';
+import {
+  Box,
+  Card,
+  CardContent,
+  Tabs,
+  Tab,
+  TextField,
+  Button,
+  Typography,
+  CircularProgress,
+  useTheme,
+} from '@mui/material';
 import { useAuth } from '../auth/AuthContext';
-import Login from './Login';
+import { useForm } from 'react-hook-form';
 
-export const LoginOrJoin: React.FC = () => {
-  const [mode, setMode] = useState<'login' | 'room'>('login');
-  const [code, setCode] = useState('');
+type FormLogin = { email: string; password: string };
+type FormRoom  = { roomCode: string };
+
+const LoginOrJoin: React.FC = () => {
+  const theme = useTheme();
+  const { login, loginWithRoom } = useAuth();
+  const [mode, setMode]     = useState<'login' | 'room'>('login');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { loginWithRoom } = useAuth();
+  const [error, setError]     = useState<string | null>(null);
 
-  const handleRoomSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+  const {
+    register: regLogin,
+    handleSubmit: onLoginSubmit,
+    formState: { errors: loginErr },
+  } = useForm<FormLogin>();
+
+  const {
+    register: regRoom,
+    handleSubmit: onRoomSubmit,
+    formState: { errors: roomErr },
+  } = useForm<FormRoom>();
+
+  const onLogin = async (data: FormLogin) => {
+    setError(null); setLoading(true);
     try {
-      await loginWithRoom(code.trim());
-    } catch (err: any) {
-      // если сервер вернул 404 — комната не найдена, иначе общая ошибка
-      if (err.response?.status === 404) {
-        setError('Комната с таким кодом не найдена.');
-      } else {
-        setError('Не удалось соединиться с сервером. Попробуйте позже.');
-      }
-    } finally {
-      setLoading(false);
-    }
+      await login(data.email, data.password);
+    } catch (e: any) {
+      setError(e.response?.data?.message || 'Ошибка входа');
+    } finally { setLoading(false); }
+  };
+
+  const onJoin = async (data: FormRoom) => {
+    setError(null); setLoading(true);
+    try {
+      await loginWithRoom(data.roomCode);
+    } catch (e: any) {
+      setError(
+        e.response?.status === 404
+          ? 'Комната не найдена'
+          : e.response?.data?.message || 'Ошибка входа'
+      );
+    } finally { setLoading(false); }
   };
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded-lg shadow-md">
-      <div className="flex justify-center mb-6">
-        <button
-          onClick={() => setMode('login')}
-          className={`px-4 py-2 focus:outline-none ${
-            mode === 'login'
-              ? 'border-b-2 border-blue-500 font-semibold'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          По паролю
-        </button>
-        <button
-          onClick={() => setMode('room')}
-          className={`px-4 py-2 focus:outline-none ${
-            mode === 'room'
-              ? 'border-b-2 border-blue-500 font-semibold'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          По коду комнаты
-        </button>
-      </div>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        bgcolor: theme.palette.background.default,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 2,
+      }}
+    >
+      <Card
+        elevation={4}
+        sx={{
+          maxWidth: 400,
+          width: '100%',
+          borderRadius: 2,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
+        <CardContent sx={{ p: 3 }}>
+          <Typography variant="h5" gutterBottom>
+            Добро пожаловать в Cubit
+          </Typography>
 
-      {mode === 'login' ? (
-        <Login />
-      ) : (
-        <form onSubmit={handleRoomSubmit} aria-busy={loading}>
-          <h2 className="text-xl font-medium mb-4">Войти в комнату</h2>
-
-          <label htmlFor="roomCode" className="block mb-1 font-medium">
-            Код комнаты
-          </label>
-          <input
-            id="roomCode"
-            type="text"
-            value={code}
-            onChange={e => setCode(e.target.value)}
-            required
-            disabled={loading}
-            className="w-full px-3 py-2 mb-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-            aria-describedby="roomCodeError"
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 mt-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          <Tabs
+            value={mode}
+            onChange={(_, v) => { setMode(v); setError(null); }}
+            textColor="primary"
+            indicatorColor="primary"
           >
-            {loading ? 'Вхожу…' : 'Войти'}
-          </button>
+            <Tab value="login" label="По паролю" />
+            <Tab value="room"  label="По коду комнаты" />
+          </Tabs>
 
-          <p
-            id="roomCodeError"
-            role="alert"
-            className="mt-2 text-sm text-red-600"
-          >
-            {error}
-          </p>
-        </form>
-      )}
-    </div>
+          {mode === 'login' ? (
+            <Box component="form" onSubmit={onLoginSubmit(onLogin)} noValidate sx={{ mt: 2 }}>
+              <TextField
+                label="Email"
+                fullWidth
+                margin="normal"
+                {...regLogin('email', {
+                  required: 'Email обязателен',
+                  pattern: {
+                    value: /^\S+@\S+\.\S+$/,
+                    message: 'Неверный формат',
+                  },
+                })}
+                error={!!loginErr.email}
+                helperText={loginErr.email?.message}
+                disabled={loading}
+              />
+              <TextField
+                label="Пароль"
+                type="password"
+                fullWidth
+                margin="normal"
+                {...regLogin('password', {
+                  required: 'Пароль обязателен',
+                  minLength: { value: 6, message: 'Мин. 6 символов' },
+                })}
+                error={!!loginErr.password}
+                helperText={loginErr.password?.message}
+                disabled={loading}
+              />
+
+              {error && (
+                <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+                  {error}
+                </Typography>
+              )}
+
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                size="large"
+                sx={{ mt: 3, py: 1.5 }}
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : undefined}
+              >
+                Войти
+              </Button>
+            </Box>
+          ) : (
+            <Box component="form" onSubmit={onRoomSubmit(onJoin)} noValidate sx={{ mt: 2 }}>
+              <TextField
+                label="Код комнаты"
+                fullWidth
+                margin="normal"
+                {...regRoom('roomCode', { required: 'Код комнаты обязателен' })}
+                error={!!roomErr.roomCode}
+                helperText={roomErr.roomCode?.message}
+                disabled={loading}
+              />
+
+              {error && (
+                <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+                  {error}
+                </Typography>
+              )}
+
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                size="large"
+                sx={{ mt: 3, py: 1.5 }}
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : undefined}
+              >
+                Войти
+              </Button>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+    </Box>
   );
 };
 

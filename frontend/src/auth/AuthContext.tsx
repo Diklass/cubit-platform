@@ -1,7 +1,7 @@
 // frontend/src/auth/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export type User = {
   id: string;
@@ -19,7 +19,6 @@ export type AuthContextType = {
   logout: () => void;
 };
 
-// **Обратите внимание**: в createContext сразу передаём все методы, включая loginWithRoom
 const AuthContext = createContext<AuthContextType>({
   token: null,
   user: null,
@@ -31,72 +30,88 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  const [token, _setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [user, setUser] = useState<User | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // При изменении токена: сохраняем в localStorage, ставим заголовок и тянем профиль
-  useEffect(() => {
-    if (!token) {
-      // разлогинились
-      setUser(null);
-      localStorage.removeItem('token');
-      delete api.defaults.headers.common.Authorization;
-      return;
-    }
-
-    // ставим токен в хранилище и заголовок
-    localStorage.setItem('token', token);
-    api.defaults.headers.common.Authorization = `Bearer ${token}`;
-
-    // распарсим пэйлоуд
-    try {
-      const payload = JSON.parse(window.atob(token.split('.')[1]));
-      if (payload.role === 'GUEST') {
-        // сразу выставляем гостя из пэйлоуда
-        setUser({
-          id: payload.sub,
-          email: '',              // у гостя email нет
-          role: 'GUEST',
-          createdAt: '',
-          updatedAt: '',
-        });
-        return;
-      }
-    } catch {
-      // некорректный токен
-      setToken(null);
-      return;
-    }
-
-    // для не-гостя — запрашиваем профиль
-    api.get<User>('/users/me')
-      .then(res => setUser(res.data))
-      .catch(() => {
-        setToken(null);
-        setUser(null);
-        localStorage.removeItem('token');
-        delete api.defaults.headers.common.Authorization;
-        navigate('/login');
-      });
-  }, [token, navigate]);
-
-  const login = async (email: string, password: string) => {
-    const res = await api.post<{ access_token: string }>('/auth/login', { email, password });
-    setToken(res.data.access_token);
-    navigate('/dashboard');
+  // Утилита, чтобы одновременно установить токен в три места
+  const setToken = (t: string) => {
+    localStorage.setItem('token', t);
+    api.defaults.headers.common.Authorization = `Bearer ${t}`;
+    _setToken(t);
   };
 
-  const loginWithRoom = async (roomCode: string) => {
-    const res = await api.post<{ access_token: string }>('/auth/room-login', { roomCode });
-    setToken(res.data.access_token);
-    navigate(`/rooms/${roomCode}`);
-  };
-
+  // Логаут
   const logout = () => {
-    setToken(null);
+    _setToken(null);
     setUser(null);
+    localStorage.removeItem('token');
+    delete api.defaults.headers.common.Authorization;
     navigate('/login');
+  };
+
+  // При старте приложения, если в localStorage есть токен — сразу авторизуемся
+  useEffect(() => {
+    if (!token) return;
+
+    setToken(token); // установим header и storage
+
+    // Парсим пэйлоуд JWT
+    let payload: any;
+    try {
+      payload = JSON.parse(window.atob(token.split('.')[1]));
+    } catch {
+      return logout();
+    }
+
+    if (payload.role === 'GUEST') {
+      // Собираем гостя из пэйлоуда
+      setUser({
+        id: payload.sub,
+        email: '',
+        role: 'GUEST',
+        createdAt: '',
+        updatedAt: '',
+      });
+    } else {
+      // Для зарегистрированных — тянем профиль
+      api.get<User>('/users/me')
+        .then(res => setUser(res.data))
+        .catch(logout);
+    }
+  }, [token]);
+
+  // Вход по логину/паролю
+  const login = async (email: string, password: string) => {
+    const { data } = await api.post<{ access_token: string }>('/auth/login', { email, password });
+    const t = data.access_token;
+    setToken(t);
+
+    // Дождаться профиля и только потом навигировать
+    const profile = (await api.get<User>('/users/me')).data;
+    setUser(profile);
+
+    navigate('/dashboard', { replace: true, state: { from: location } });
+  };
+
+  // Вход по коду комнаты
+  const loginWithRoom = async (roomCode: string) => {
+    const { data } = await api.post<{ access_token: string }>('/auth/room-login', { roomCode });
+    const t = data.access_token;
+    setToken(t);
+
+    // Разбор гостя из JWT пэйлоуда
+    const payload = JSON.parse(window.atob(t.split('.')[1]));
+    setUser({
+      id: payload.sub,
+      email: '',
+      role: 'GUEST',
+      createdAt: '',
+      updatedAt: '',
+    });
+
+    navigate(`/rooms/${roomCode}`, { replace: true, state: { from: location } });
   };
 
   return (

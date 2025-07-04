@@ -2,11 +2,9 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Install dependencies
 COPY backend/package*.json ./
 RUN npm ci
 
-# Copy source and build
 COPY backend/ ./
 RUN npm run build
 
@@ -14,11 +12,16 @@ RUN npm run build
 FROM node:18-alpine
 WORKDIR /app
 
-# Copy built files and dependencies
-COPY --from=builder /app/dist ./dist
+# Устанавливаем только прод-зависимости
 COPY backend/package*.json ./
 RUN npm ci --only=production
 
-# Expose port and run
+# Копируем билд и другие важные файлы
+COPY --from=builder /app/dist ./dist
+COPY backend/prisma ./prisma
+
+# Если используешь Prisma Client — сгенерируй его
+RUN npx prisma generate
+
 EXPOSE 3001
 CMD ["node", "dist/main.js"]

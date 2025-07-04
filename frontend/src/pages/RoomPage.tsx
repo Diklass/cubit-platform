@@ -370,43 +370,58 @@ const onSaveEdit = async () => {
           )}
 
           <div className="flex-1 overflow-auto p-4 pb-0 space-y-4">
-            {messages.map(m => (
-              <div
-                key={m.id}
-                className="relative bg-surface p-4 rounded-lg shadow-level1">
-                <div className="text-xs text-gray-500 mb-2">
-                  {m.author?.email || 'Гость'} —{' '}
-                  {new Date(m.createdAt).toLocaleString()}
-                </div>
-                {m.text && (
-                  <div
-                    className="prose mb-2"
-                    dangerouslySetInnerHTML={{
-                      __html: DOMPurify.sanitize(m.text!),
-                    }}
-                  />
-                )}
+          {messages.slice().reverse().map(m => (
+            <div
+              key={m.id}
+              className="relative bg-surface p-4 rounded-lg shadow-level1"
+            >
+              {/* 1. Автор и дата */}
+              <div className="text-xs text-gray-500 mb-2">
+                {m.author?.email || 'Гость'} —{' '}
+                {new Date(m.createdAt).toLocaleString()}
+              </div>
+
+              {/* 2. Текст сообщения */}
+              {m.text && (
+                <div
+                  className="prose mb-2"
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(m.text),
+                  }}
+                />
+              )}
+
+              {/* 3. Вложения — обёрнуты в <a download> */}
+              <div className="mt-2 flex flex-col space-y-2">
                 {m.attachments?.map(att => {
                   const url = `http://localhost:3001/rooms/files/${att.url}`;
                   const ext = att.url.split('.').pop()!.toLowerCase();
                   const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
-                  return isImg ? (
-                    <img
-                      key={att.id}
-                      src={url}
-                      className="max-h-48 mt-2 rounded-lg border"
-                    />
-                  ) : (
+
+                  return (
                     <a
                       key={att.id}
                       href={url}
                       download
-                      className="block text-blue-600 mt-2"
+                      className="inline-block"
                     >
-                      📄 {decodeURIComponent(att.url)}
+                      {isImg ? (
+                        <img
+                          src={url}
+                          alt={decodeURIComponent(att.url)}
+                          className="max-h-48 rounded-lg border cursor-pointer"
+                        />
+                      ) : (
+                        <span className="text-blue-600 underline cursor-pointer">
+                          📄 {decodeURIComponent(att.url)}
+                        </span>
+                      )}
                     </a>
                   );
                 })}
+              </div>
+
+
 
                 {/* кнопки редактирования/удаления */}
                 {m.author?.id === user?.id && !editingMessage && (

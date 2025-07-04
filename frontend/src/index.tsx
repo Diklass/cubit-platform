@@ -11,6 +11,8 @@ import 'react-colorful/dist/index.css';
 
 const queryClient = new QueryClient();
 
+
+
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -22,3 +24,5 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+
