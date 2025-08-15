@@ -1,4 +1,3 @@
-// src/modules/chats/chats.gateway.ts
 import {
   SubscribeMessage,
   WebSocketGateway,
@@ -26,6 +25,22 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly prisma: PrismaService,
   ) {}
 
+  private getIoServer(): Server {
+    // Если this.server — Namespace, у него есть .server с корневым io.Server
+    return (this.server as any)?.server ?? (this.server as any);
+  }
+
+  /** Широковещательная отправка в конкретную сессию (namespace + room) */
+  emitToSession(sessionId: string, event: string, payload: any) {
+    const io = this.getIoServer();
+
+    // пробуем взять уже существующий namespace, иначе создаём
+    const existing = (io as any)._nsps?.get?.(`/chats/${sessionId}`);
+    const nsp = existing || io.of(`/chats/${sessionId}`);
+
+    nsp.to(sessionId).emit(event, payload);
+  }
+
   handleConnection(client: Socket) {
     console.log(`[WS] Connected to ${client.nsp.name}`);
   }
@@ -45,38 +60,39 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('chatMessage')
   async handleMessage(
-    @MessageBody()
-    payload: { sessionId: string; text: string; authorId: string },
+    @MessageBody() payload: { sessionId: string; text: string; authorId: string },
+    @ConnectedSocket() client: Socket,
   ) {
-    // через WS файлы не передаются, только текст
     const msg = await this.chatsService.sendMessage(
       payload.sessionId,
       payload.text,
-      [], // без файлов
+      [],
       { id: payload.authorId },
     );
-
-    // msg уже содержит author и attachments
-    this.server.to(payload.sessionId).emit('chatMessage', msg);
+    client.nsp.to(payload.sessionId).emit('chatMessage', msg);
+  client.nsp.to(payload.sessionId).emit('messageCreated', msg);
+    return msg; // ack
   }
 
   @SubscribeMessage('chatEdited')
   async handleEdit(
     @MessageBody() payload: { messageId: string; text: string; sessionId: string },
+    @ConnectedSocket() client: Socket,
   ) {
     const updated = await this.prisma.message.update({
       where: { id: payload.messageId },
       data: { text: payload.text },
       include: { author: true, attachments: true },
     });
-    this.server.to(payload.sessionId).emit('chatEdited', updated);
+    client.nsp.to(payload.sessionId).emit('chatEdited', updated);
   }
 
   @SubscribeMessage('chatDeleted')
   async handleDelete(
     @MessageBody() payload: { messageId: string; sessionId: string },
+    @ConnectedSocket() client: Socket,
   ) {
     await this.chatsService.deleteMessageWithAttachments(payload.messageId);
-    this.server.to(payload.sessionId).emit('chatDeleted', payload.messageId);
+    client.nsp.to(payload.sessionId).emit('chatDeleted', payload.messageId);
   }
 }

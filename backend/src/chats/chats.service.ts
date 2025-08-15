@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Express } from 'express';
-import { writeFileSync } from 'fs';
-import { extname } from 'path';
 import { v4 as uuid } from 'uuid';
+
+import { writeFileSync, mkdirSync } from 'fs';
+import { join, extname } from 'path';
+
+const UPLOADS_DIR = join(process.cwd(), 'uploads');
+mkdirSync(UPLOADS_DIR, { recursive: true });
 
 @Injectable()
 export class ChatsService {
@@ -57,13 +61,13 @@ export class ChatsService {
     });
   }
 
-   async editMessage(
+  async editMessage(
     messageId: string,
     newText: string,
     removeAttachmentIds: string[],
     newFiles: Express.Multer.File[],
     user: { id: string },
-  ) {
+  )  {
     // 1) проверяем авторство
     const msg = await this.prisma.message.findUnique({
       where: { id: messageId },
@@ -81,8 +85,9 @@ export class ChatsService {
 
     // 3) сохранить новые файлы
     const attachmentsData = newFiles.map(file => {
-      const fileName = `${uuid()}-${encodeURIComponent(file.originalname)}`;
-      writeFileSync(`uploads/${fileName}`, file.buffer);
+      const fileExt = extname(file.originalname || '') || '';
+      const fileName = `${uuid()}${fileExt}`;     // ТОЛЬКО uuid + расширение
+      writeFileSync(join(UPLOADS_DIR, fileName), file.buffer);
       return { url: fileName, messageId };
     });
     if (attachmentsData.length) {
@@ -107,7 +112,6 @@ export class ChatsService {
     files: Express.Multer.File[],
     user: { id: string },
   ) {
-    // Проверяем сессию и доступ
     const session = await this.prisma.chatSession.findUnique({ where: { id: sessionId } });
     if (!session) throw new NotFoundException('Сессия не найдена');
     if (user.id !== session.studentId && user.id !== session.teacherId) {
@@ -116,27 +120,25 @@ export class ChatsService {
 
     // Сохраняем файлы и формируем данные для вложений
     const attachmentsData = files.map(file => {
-      const fileName = `${uuid()}-${encodeURIComponent(file.originalname)}`;
-      writeFileSync(`uploads/${fileName}`, file.buffer);
+      const fileExt = extname(file.originalname || '') || '';
+      const fileName = `${uuid()}${fileExt}`;     // ТОЛЬКО uuid + расширение
+      writeFileSync(join(UPLOADS_DIR, fileName), file.buffer);
       return { url: fileName };
     });
 
     // Создаём одно сообщение с вложениями
     const message = await this.prisma.message.create({
-      data: {
-        text: text?.trim() || '',
-        chatSession: { connect: { id: sessionId } },
-        author:      { connect: { id: user.id } },
-        attachments: files.length > 0
-          ? { create: attachmentsData }
-          : undefined,
-      },
-      include: { author: true, attachments: true },
-    });
+          data: {
+            text: text?.trim() || '',
+            chatSession: { connect: { id: sessionId } },
+            author:      { connect: { id: user.id } },
+            attachments: files.length > 0 ? { create: attachmentsData } : undefined,
+          },
+          include: { author: true, attachments: true },
+        });
 
-    return message;
-  }
-
+        return message;
+      }
   async deleteMessageWithAttachments(messageId: string) {
   // сначала удаляем вложения
   await this.prisma.attachment.deleteMany({

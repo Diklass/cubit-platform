@@ -5,6 +5,23 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// ↓↓↓ ДОБАВЬ ЭТО
+api.interceptors.request.use((config) => {
+  const token =
+    localStorage.getItem('access_token') ||
+    localStorage.getItem('token') ||
+    (api.defaults.headers.common.Authorization
+      ? String(api.defaults.headers.common.Authorization).replace(/^Bearer\s+/i, '')
+      : '');
+
+  if (token && !config.headers?.Authorization) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+// ↑↑↑ ДОБАВЬ ЭТО
+
 api.interceptors.response.use(
   response => response,
   async error => {
@@ -18,12 +35,10 @@ api.interceptors.response.use(
       try {
         const res = await api.post<{ access_token: string }>('/auth/refresh');
         const newToken = res.data.access_token;
-        // обновить заголовок и retry
         api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
       } catch {
-        // не удалось обновить — выкидываем к логину
         window.location.href = '/login';
         return Promise.reject(error);
       }

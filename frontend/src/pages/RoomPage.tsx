@@ -240,7 +240,9 @@ const onSaveEdit = async () => {
       prev.map(m => m.id === updated.id ? updated : m)
     );
     // и рассылаем в WS
-    socket.emit('messageEdited', updated);
+    if (socket) {
+      socket.emit('messageEdited', updated);
+    }
     setEditingMessage(null);
   } catch {
     alert('Не удалось обновить сообщение');
@@ -253,7 +255,9 @@ const onSaveEdit = async () => {
     api.delete(`/rooms/${code}/messages/${id}`)
       .then(() => {
         setMessages(prev => prev.filter(m => m.id !== id));
-        socket.emit('deleteMessage', { roomCode: code, messageId: id });
+        if (socket) {
+          socket.emit('deleteMessage', { roomCode: code, messageId: id });
+        }
       })
       .catch(() => alert('Не удалось удалить сообщение'));
   };
@@ -394,7 +398,7 @@ const onSaveEdit = async () => {
               {/* 3. Вложения — обёрнуты в <a download> */}
               <div className="mt-2 flex flex-col space-y-2">
                 {m.attachments?.map(att => {
-                  const url = `http://localhost:3001/rooms/files/${att.url}`;
+                  const url = `http://localhost:3001/uploads/${att.url}`;
                   const ext = att.url.split('.').pop()!.toLowerCase();
                   const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
 
