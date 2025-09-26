@@ -15,6 +15,7 @@ import { RoomSettingsModal } from '../components/RoomSettingsModal';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AxiosResponse } from 'axios';
+import { useTheme } from "@mui/material/styles";
 
 import 'react-quill/dist/quill.snow.css';
 
@@ -61,6 +62,8 @@ export function RoomPage() {
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [showChat, setShowChat] = useState(false);
+
+  const theme = useTheme();
 
   // NEW: состояние свернутого/развернутого композера для материалов
   const [composerOpen, setComposerOpen] = useState(false);
@@ -268,7 +271,7 @@ export function RoomPage() {
           <div className="flex flex-1 min-h-0">
             {/* список сессий (учитель) */}
             {isTeacher && (
-              <aside className="w-1/3 bg-m3-surf p-4 rounded-2xl mr-2 border border-gray-200">
+              <aside className="w-1/3 bg-m3-surf p-4 rounded-2xl mr-2 border border-m3-outline">
                 <h2 className="mb-2 text-lg font-semibold">Ученики</h2>
                 {chatSessions.map(s => (
                   <div
@@ -294,7 +297,7 @@ export function RoomPage() {
             )}
 
             {/* окно чата */}
-            <div className="flex-1 bg-m3-surf overflow-y-auto rounded-2xl border border-gray-200" style={{ minHeight: 0 }}>
+            <div className="flex-1 bg-m3-surf overflow-y-auto rounded-2xl border border-m3-outline" style={{ minHeight: 0 }}>
               {chatSessionId ? (
                 <ChatWindow sessionId={chatSessionId} setUnreadCounts={setUnreadCounts} />
               ) : (
@@ -314,7 +317,7 @@ export function RoomPage() {
 
             <div className="flex-1 overflow-auto pt-4 pb-24 space-y-4"> {/* увеличили нижний паддинг под выезжающий композер */}
               {messages.slice().reverse().map(m => (
-                <div key={m.id} className="relative bg-surface p-4 rounded-2xl shadow-level1 border border-gray-200">
+                <div key={m.id} className="relative bg-m3-surf p-4 rounded-2xl shadow-level1 border border-m3-outline">
                   <div className="text-xs text-gray-500 mb-2">
                     {m.author?.email || 'Гость'} — {new Date(m.createdAt).toLocaleString()}
                   </div>
@@ -388,85 +391,124 @@ export function RoomPage() {
 
             {/* Выезжающий композер — только в материалах */}
             {isTeacher && !showChat && (
-              <div
-                className={[
-                  'fixed left-0 right-0 bottom-0 z-20',
-                  'transition-all duration-300',
-                  composerOpen ? 'translate-y-0 opacity-100' : 'translate-y-[110%] opacity-0',
-                ].join(' ')}
+            <div
+              className={[
+                'fixed left-0 right-0 bottom-0 z-20',
+                'transition-all duration-300',
+                composerOpen ? 'translate-y-0 opacity-100' : 'translate-y-[110%] opacity-0',
+              ].join(' ')}
+            >
+              <form
+                onSubmit={(e) => {
+                  sendMaterial(e);
+                  setComposerOpen(false);
+                }}
+                className="w-full px-2 pt-1 pb-safe bg-transparent"
               >
-                <form
-                  onSubmit={(e) => {
-                    sendMaterial(e);
-                    setComposerOpen(false);
+                {/* Верхняя часть с редактором */}
+                <div
+                  className="rounded-t-lg px-3 pt-5 pb-12 mx-[10px]"
+                  style={{
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                    color: theme.palette.text.primary,
                   }}
-                  className="w-full px-2 pt-1 pb-safe bg-transparent"
                 >
-                  <div className="bg-white rounded-t-lg border border-gray-300 px-3 pt-5 pb-12 mx-[10px]">
-                    <div className="h-[180px]">
-                      <ReactQuill
-                        value={text}
-                        onChange={setText}
-                        modules={{
-                          toolbar: [
-                            ['bold', 'italic', 'underline', 'strike'],
-                            [{ header: 1 }, { header: 2 }],
-                            [{ list: 'ordered' }, { list: 'bullet' }],
-                            [{ size: ['small', false, 'large', 'huge'] }],
-                            ['link'], ['clean'],
-                          ],
-                        }}
-                        formats={['header','bold','italic','underline','strike','list','bullet','size','link']}
-                        placeholder="Введите сообщение..."
-                        className="h-full"
-                      />
-                    </div>
-
-                    {files.length > 0 && (
-                      <div className="flex flex-wrap gap-2 my-2">
-                        {files.map((file, idx) => (
-                          <div key={idx} className="bg-gray-100 px-2 py-1 rounded-lg flex items-center space-x-1">
-                            <span className="text-xs break-all">{file.name}</span>
-                            <button onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}>✕</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div className="h-[180px]">
+                    <ReactQuill
+                      value={text}
+                      onChange={setText}
+                      modules={{
+                        toolbar: [
+                          ['bold', 'italic', 'underline', 'strike'],
+                          [{ header: 1 }, { header: 2 }],
+                          [{ list: 'ordered' }, { list: 'bullet' }],
+                          [{ size: ['small', false, 'large', 'huge'] }],
+                          ['link'], ['clean'],
+                        ],
+                      }}
+                      formats={['header','bold','italic','underline','strike','list','bullet','size','link']}
+                      placeholder="Введите сообщение..."
+                      className="h-full"
+                    />
                   </div>
 
-                  <div className="bg-white rounded-b-lg border border-gray-300 px-3 py-2 mx-[10px] flex items-center justify-end space-x-4">
-                    <button
-                      type="button"
-                      onClick={() => setComposerOpen(false)}
-                      className="text-sm text-gray-600 hover:text-gray-800 px-3 py-2"
+                  {files.length > 0 && (
+                    <div className="flex flex-wrap gap-2 my-2">
+                      {files.map((file, idx) => (
+                        <div
+                          key={idx}
+                          className="px-2 py-1 rounded-lg flex items-center space-x-1"
+                          style={{
+                            backgroundColor: theme.palette.action.hover,
+                            color: theme.palette.text.secondary,
+                          }}
+                        >
+                          <span className="text-xs break-all">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-sm"
+                            style={{ color: theme.palette.error.main }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Нижняя панель кнопок */}
+                <div
+                  className="rounded-b-lg px-3 py-2 mx-[10px] flex items-center justify-end space-x-4"
+                  style={{
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                    color: theme.palette.text.primary,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setComposerOpen(false)}
+                    className="text-sm px-3 py-2"
+                    style={{ color: theme.palette.text.secondary }}
+                  >
+                    Свернуть
+                  </button>
+
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="roomFiles"
+                      type="file"
+                      className="hidden"
+                      multiple
+                      onChange={e => setFiles(Array.from(e.target.files || []))}
+                    />
+                    <label
+                      htmlFor="roomFiles"
+                      className="cursor-pointer px-4 py-2 rounded-full text-base font-medium"
+                      style={{
+                        backgroundColor: theme.palette.action.hover,
+                        color: theme.palette.text.primary,
+                      }}
                     >
-                      Свернуть
+                      Прикрепить файл
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={!text && files.length === 0}
+                      className="px-6 py-2 rounded-full font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        backgroundColor: theme.palette.primary.main,
+                        color: theme.palette.primary.contrastText,
+                      }}
+                    >
+                      Отправить
                     </button>
-
-                    <div className="flex items-center gap-3">
-                      <input
-                        id="roomFiles"
-                        type="file"
-                        className="hidden"
-                        multiple
-                        onChange={e => setFiles(Array.from(e.target.files || []))}
-                      />
-                      <label
-                        htmlFor="roomFiles"
-                        className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-base font-medium px-4 py-2 rounded-full"
-                      >
-                        Прикрепить файл
-                      </label>
-                      <button
-                        type="submit"
-                        disabled={!text && files.length === 0}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-full font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Отправить
-                      </button>
-                    </div>
                   </div>
-                </form>
+                </div>
+              </form>
               </div>
             )}
           </div>

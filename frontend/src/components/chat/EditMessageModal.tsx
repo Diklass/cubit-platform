@@ -1,7 +1,7 @@
-// src/components/chat/EditMessageModal.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { useTheme } from '@mui/material/styles';
 
 export type Attachment = { id: string; url: string };
 
@@ -31,6 +31,7 @@ export default function EditMessageModal({
 }: EditModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [dragCount, setDragCount] = useState(0);
+  const theme = useTheme();
 
   // Drag&Drop внутри модалки с оверлеем
   useEffect(() => {
@@ -63,7 +64,12 @@ export default function EditMessageModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div
         ref={modalRef}
-        className="relative bg-surface w-11/12 md:w-2/3 lg:w-1/2 p-4 rounded-lg shadow-level2 border border-gray-200"
+        className="relative w-11/12 md:w-2/3 lg:w-1/2 p-4 rounded-lg shadow-lg"
+        style={{
+          backgroundColor: theme.palette.background.paper,
+          border: `1px solid ${theme.palette.divider}`,
+          color: theme.palette.text.primary,
+        }}
       >
         {/* Drag overlay */}
         {dragCount > 0 && (
@@ -72,7 +78,9 @@ export default function EditMessageModal({
           </div>
         )}
 
-        <h2 className="text-xl font-semibold text-on-surface mb-4">Редактировать сообщение</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          Редактировать сообщение
+        </h2>
 
         {/* Текстовый редактор */}
         <div className="h-32 mb-4">
@@ -88,7 +96,7 @@ export default function EditMessageModal({
         {/* Существующие вложения */}
         {existingAttachments.length > 0 && (
           <div className="mb-4">
-            <h3 className="font-medium mb-2 text-on-surface">Вложения</h3>
+            <h3 className="font-medium mb-2">Вложения</h3>
             <div className="flex flex-wrap gap-3">
               {existingAttachments.map(att => {
                 const src = `http://localhost:3001/uploads/${att.url}`;
@@ -97,15 +105,19 @@ export default function EditMessageModal({
                     <img
                       src={src}
                       className="max-h-24 rounded-lg border"
+                      style={{ borderColor: theme.palette.divider }}
                       crossOrigin="anonymous"
                       alt=""
                     />
                     <button
                       onClick={() => onToggleRemove(att.id)}
-                      className={[
-                        'absolute top-1 right-1 bg-white rounded-full px-2 py-1 text-sm shadow',
-                        removeIds.includes(att.id) ? 'text-red-600' : 'text-gray-500'
-                      ].join(' ')}
+                      className="absolute top-1 right-1 rounded-full px-2 py-1 text-sm shadow"
+                      style={{
+                        backgroundColor: theme.palette.background.paper,
+                        color: removeIds.includes(att.id)
+                          ? theme.palette.error.main
+                          : theme.palette.text.secondary,
+                      }}
                       title={removeIds.includes(att.id) ? 'Будет удалено' : 'Пометить на удаление'}
                     >
                       ×
@@ -119,8 +131,11 @@ export default function EditMessageModal({
 
         {/* Загрузка новых файлов */}
         <div className="mb-4">
-          <h3 className="font-medium mb-2 text-on-surface">Добавить файлы</h3>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+          <h3 className="font-medium mb-2">Добавить файлы</h3>
+          <div
+            className="border-2 border-dashed rounded-lg p-4 text-center"
+            style={{ borderColor: theme.palette.divider }}
+          >
             Перетащите файлы сюда или
             <input
               type="file"
@@ -135,7 +150,14 @@ export default function EditMessageModal({
           {newFiles.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
               {newFiles.map((f, i) => (
-                <span key={i} className="px-2 py-1 bg-gray-100 rounded-lg">
+                <span
+                  key={i}
+                  className="px-2 py-1 rounded-lg"
+                  style={{
+                    backgroundColor: theme.palette.action.hover,
+                    color: theme.palette.text.secondary,
+                  }}
+                >
                   {f.name}
                 </span>
               ))}
@@ -147,13 +169,21 @@ export default function EditMessageModal({
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-full bg-gray-100 hover:bg-gray-200 text-on-surface"
+            className="px-5 py-2 rounded-full"
+            style={{
+              backgroundColor: theme.palette.action.hover,
+              color: theme.palette.text.primary,
+            }}
           >
             Отмена
           </button>
           <button
             onClick={onSave}
-            className="px-6 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+            className="px-6 py-2 rounded-full font-semibold"
+            style={{
+              backgroundColor: theme.palette.primary.main,
+              color: theme.palette.primary.contrastText,
+            }}
           >
             Сохранить
           </button>

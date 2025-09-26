@@ -7,6 +7,8 @@ import 'react-quill/dist/quill.snow.css';
 import { useAuth } from '../../auth/AuthContext';
 import EditMessageModal from './EditMessageModal';
 import { useChatSocket, ChatMessage } from '../../hooks/useChatSocket';
+import { useTheme } from "@mui/material/styles";
+
 
 import editIcon from '../../assets/icons/edit.svg';
 import deleteIcon from '../../assets/icons/delete.svg';
@@ -29,6 +31,8 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const theme = useTheme();
 
   const {
     messages,
@@ -352,67 +356,109 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
         )}
       </div>
 
-        <form onSubmit={send} className="sticky bottom-0 w-full px-2 pt-1 pb-0 bg-transparent">
-      {/* Верхний блок: редактор + превью */}
-      <div className="bg-white rounded-t-lg border border-gray-300 px-3 pt-5 pb-12 mx-[10px]">
-        <div className="h-[180px]">
-          <ReactQuill
-            theme="snow"
-            value={text}
-            onChange={value => {
-              setText(value);
-              emitTyping();
-              clearTimeout((window as any).__stopTypingTimer);
-              (window as any).__stopTypingTimer = setTimeout(() => {
-                emitStopTyping();
-              }, 1000);
+      <form onSubmit={send} className="sticky bottom-0 w-full px-2 pt-1 pb-0 bg-transparent">
+  {/* Верхний блок: редактор + превью */}
+  <div
+    className="rounded-t-lg px-3 pt-5 pb-12 mx-[10px]"
+    style={{
+      backgroundColor: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+      color: theme.palette.text.primary,
+    }}
+  >
+    <div className="h-[180px]">
+      <ReactQuill
+        theme="snow"
+        value={text}
+        onChange={value => {
+          setText(value);
+          emitTyping();
+          clearTimeout((window as any).__stopTypingTimer);
+          (window as any).__stopTypingTimer = setTimeout(() => {
+            emitStopTyping();
+          }, 1000);
+        }}
+        modules={{
+          toolbar: [
+            ['bold','italic','underline','strike'],
+            [{header:1},{header:2}],
+            [{list:'ordered'},{list:'bullet'}],
+            [{size:['small',false,'large','huge']}],
+            ['link'],
+            ['clean']
+          ]
+        }}
+        className="h-full"
+        placeholder="Введите сообщение..."
+      />
+    </div>
+
+    {/* Превью вложений */}
+    {files.length > 0 && (
+      <div className="flex flex-wrap gap-2 my-2">
+        {files.map((file, idx) => (
+          <div
+            key={idx}
+            className="px-2 py-1 rounded-lg flex items-center space-x-1"
+            style={{
+              backgroundColor: theme.palette.action.hover,
+              color: theme.palette.text.secondary,
             }}
-            modules={{ toolbar: [['bold','italic','underline','strike'], [{header:1},{header:2}], [{list:'ordered'},{list:'bullet'}], [{size:['small',false,'large','huge']}], ['link'], ['clean']] }}
-            className="h-full"
-            placeholder="Введите сообщение..."
-          />
-        </div>
-
-        {/* Превью вложений */}
-        {files.length > 0 && (
-          <div className="flex flex-wrap gap-2 my-2">
-            {files.map((file, idx) => (
-              <div key={idx} className="bg-gray-100 px-2 py-1 rounded-lg flex items-center space-x-1">
-                <span className="text-xs break-all">{file.name}</span>
-                <button onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}>✕</button>
-              </div>
-            ))}
+          >
+            <span className="text-xs break-all">{file.name}</span>
+            <button
+              onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}
+              className="text-red-500"
+            >
+              ✕
+            </button>
           </div>
-        )}
+        ))}
       </div>
+    )}
+  </div>
 
-      {/* Нижний блок: кнопки */}
-      <div className="bg-white rounded-b-lg border border-gray-300 px-3 py-2 mx-[10px] flex items-center justify-end space-x-4">
-        <input
-          id="chatFiles"
-          type="file"
-          className="hidden"
-          multiple
-          onChange={e => setFiles(Array.from(e.target.files || []))}
-          disabled={!!editingMessage}
-        />
-        <label
-          htmlFor="chatFiles"
-          className={`cursor-pointer bg-gray-100 hover:bg-gray-200 text-base font-medium px-4 py-2 rounded ${
-            editingMessage ? 'opacity-50 pointer-events-none' : ''
-          }`}
-        >
-          Прикрепить файл
-        </label>
-        <button
-          type="submit"
-          disabled={uploading || !!editingMessage || (!text && files.length === 0)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-full font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {uploading ? `Загрузка… ${progress}%` : 'Отправить'}
-        </button>
-      </div>
-    </form>
+  {/* Нижний блок: кнопки */}
+  <div
+    className="rounded-b-lg px-3 py-2 mx-[10px] flex items-center justify-end space-x-4"
+    style={{
+      backgroundColor: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+    }}
+  >
+    <input
+      id="chatFiles"
+      type="file"
+      className="hidden"
+      multiple
+      onChange={e => setFiles(Array.from(e.target.files || []))}
+      disabled={!!editingMessage}
+    />
+    <label
+      htmlFor="chatFiles"
+      className={`cursor-pointer px-4 py-2 rounded ${
+        editingMessage ? 'opacity-50 pointer-events-none' : ''
+      }`}
+      style={{
+        backgroundColor: theme.palette.action.hover,
+        color: theme.palette.text.primary,
+      }}
+    >
+      Прикрепить файл
+    </label>
+    <button
+      type="submit"
+      disabled={uploading || !!editingMessage || (!text && files.length === 0)}
+      className="px-6 py-2 rounded-full font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{
+        backgroundColor: theme.palette.primary.main,
+        color: theme.palette.primary.contrastText,
+      }}
+    >
+      {uploading ? `Загрузка… ${progress}%` : 'Отправить'}
+    </button>
+  </div>
+</form>
 
       {editingMessage && (
         <EditMessageModal

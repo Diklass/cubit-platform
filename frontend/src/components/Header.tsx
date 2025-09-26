@@ -1,64 +1,111 @@
 // src/components/Header.tsx
 import React from 'react';
-import { NavButton } from './NavButton';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import ExpressiveSegmentedTabs from './ui/ExpressiveSegmentedTabs';
 import logoSrc from '../assets/logo.svg';
 import avatarSrc from '../assets/avatar.svg';
+import { motion, useReducedMotion } from 'framer-motion';
+import { useTheme } from '@mui/material/styles';
+import { IconButton, Tooltip } from "@mui/material";
+import { Brightness4, Brightness7 } from "@mui/icons-material";
+import { useThemeContext } from "../theme/ThemeContext";
 
 export const Header: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const prefersReducedMotion = useReducedMotion();
+  const theme = useTheme();
+  const { toggleTheme } = useThemeContext();
+
+
+  const tabs = [
+    { key: 'lessons',   label: 'Уроки',       to: '/lessons' },
+    { key: 'schedule',  label: 'Расписание',  to: '/schedule' },
+    { key: 'journal',   label: 'Журнал',      to: '/journal' },
+    { key: 'rooms',     label: 'Комнаты',     to: '/rooms' },
+  ] as const;
+
+  const activeKey =
+    tabs.find(t => location.pathname.startsWith(t.to))?.key ?? tabs[0].key;
+
+    
 
   return (
-    <header
-      className="
-        sticky top-[22px] mx-[20px] 
-        z-20
-        bg-surface shadow-level1 rounded-lg
-        h-[60px] p-[10px]
-        flex items-center justify-between
-      "
+    <motion.header
+      key={user?.id ?? 'guest'}
+      className="sticky top-[22px] mx-[20px] z-20 rounded-lg h-[60px] p-[10px] flex items-center justify-between shadow-md"
+      style={{
+        willChange: 'transform',
+        backgroundColor: theme.palette.background.paper,
+        color: theme.palette.text.primary,
+      }}
+      initial={prefersReducedMotion ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: -28, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={
+        prefersReducedMotion
+          ? { duration: 0 }
+          : { type: 'spring', stiffness: 280, damping: 18, mass: 0.7, bounce: 0.2, delay: 0.05 }
+      }
     >
       {/* Логотип */}
       <NavLink to="/dashboard" className="flex items-center no-underline">
         <div className="w-[60px] h-[60px] rounded-lg flex items-center justify-center flex-shrink-0">
           <img src={logoSrc} alt="Cubit Logo" className="w-[42px] h-[42px] object-contain" />
         </div>
-        <span className="ml-[10px] text-[24px] font-bold text-onSurface">
+        <span className="ml-[10px] text-[24px] font-bold">
           Cubit
         </span>
       </NavLink>
 
-      {/* Справа: навигация + аватар */}
+      {/* Правый блок */}
       <div className="flex items-center gap-[20px]">
-        <nav className="flex items-center gap-[15px]">
-          {/* Обычное меню для не-гостя */}
-          {user?.role !== 'GUEST' && (
-            <>
-              <NavButton to="/lessons">Уроки</NavButton>
-              <NavButton to="/schedule">Расписание</NavButton>
-              <NavButton to="/journal">Журнал</NavButton>
-              <NavButton to="/rooms">Комнаты</NavButton>
-            </>
-          )}
+        {user?.role !== 'GUEST' ? (
+          <ExpressiveSegmentedTabs
+            value={activeKey}
+            onChange={(k) => {
+              const target = tabs.find(t => t.key === k);
+              if (target) navigate(target.to);
+            }}
+            options={tabs.map(({ key, label }) => ({ key, label }))}
+            size="sm"
+            gap={10}
+            sx={{ minWidth: 360 }}
+          />
+        ) : (
+          <NavLink
+            to="/login"
+            className="h-[40px] px-[24px] flex items-center justify-center text-[16px] font-medium tracking-[0.1px] rounded-full border no-underline"
+            style={{
+              borderColor: theme.palette.divider,
+              color: theme.palette.text.primary,
+            }}
+          >
+            Войти
+          </NavLink>
+        )}
 
-          {/* Для гостя — кнопка Войти */}
-          {user?.role === 'GUEST' && (
-            <NavButton to="/login">Войти</NavButton>
-          )}
-        </nav>
+         {/* Переключатель темы */}
+        <Tooltip title="Сменить тему">
+          <IconButton onClick={toggleTheme} color="inherit">
+            {theme.palette.mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
+          </IconButton>
+        </Tooltip>
 
-        {/* Аватар — только для авторизованных (не-гостей) */}
         {user?.role !== 'GUEST' && (
           <NavLink to="/profile" className="block">
             <img
               src={avatarSrc}
               alt="User Avatar"
-              className="w-[42px] h-[42px] bg-primary-container rounded-full object-cover"
+              className="w-[42px] h-[42px] rounded-full object-cover"
+              style={{
+                backgroundColor: theme.palette.primary.main,
+              }}
             />
           </NavLink>
         )}
       </div>
-    </header>
+    </motion.header>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavButton } from './NavButton';
 import { HexColorPicker } from 'react-colorful';
+import { useTheme } from '@mui/material/styles';
 
 export interface RoomSettings {
   title: string;
@@ -20,11 +21,11 @@ export const RoomSettingsModal: React.FC<Props> = ({
   onClose,
   onSave,
 }) => {
+  const theme = useTheme();
   const basePresets = ['#6750A4', '#33691E', '#006A67', '#B3261E', '#1E88E5'];
   const [title, setTitle] = useState(initial.title);
   const [bgColor, setBgColor] = useState(initial.bgColor);
   const [userPresets, setUserPresets] = useState<string[]>([]);
-
   const [showPicker, setShowPicker] = useState(false);
   const [tempPickerColor, setTempPickerColor] = useState(initial.bgColor);
 
@@ -63,29 +64,45 @@ export const RoomSettingsModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start justify-center pt-[92px] z-50">
-      <div className="relative bg-surface rounded-lg shadow-level3 border border-outline w-full max-w-md mx-4 p-6 space-y-6">
-        <h2 className="text-lg font-medium text-on-surface">Настройки комнаты</h2>
+      <div
+        className="relative rounded-lg shadow-lg w-full max-w-md mx-4 p-6 space-y-6"
+        style={{
+          backgroundColor: theme.palette.background.paper,
+          border: `1px solid ${theme.palette.divider}`,
+          color: theme.palette.text.primary,
+        }}
+      >
+        <h2 className="text-lg font-medium" style={{ color: theme.palette.text.primary }}>
+          Настройки комнаты
+        </h2>
 
         {/* Название комнаты */}
         <div className="flex flex-col space-y-1">
-          <label className="font-medium text-on-surface-variant">Название комнаты:</label>
+          <label style={{ color: theme.palette.text.secondary }}>Название комнаты:</label>
           <input
             type="text"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            className="w-full p-2 border rounded"
+            className="w-full p-2 rounded"
+            style={{
+              backgroundColor: theme.palette.background.default,
+              border: `1px solid ${theme.palette.divider}`,
+              color: theme.palette.text.primary,
+            }}
           />
         </div>
 
         {/* Текущий цвет */}
         <div className="flex items-center space-x-3">
-          <label className="font-medium text-on-surface-variant">Текущий цвет:</label>
+          <label style={{ color: theme.palette.text.secondary }}>Текущий цвет:</label>
           <div
             className="w-10 h-10 rounded cursor-pointer border"
-            style={{ backgroundColor: bgColor }}
+            style={{ backgroundColor: bgColor, border: `1px solid ${theme.palette.divider}` }}
             onClick={onAddColorClick}
           />
-          <span className="text-sm text-on-surface-variant">{bgColor}</span>
+          <span className="text-sm" style={{ color: theme.palette.text.secondary }}>
+            {bgColor}
+          </span>
         </div>
 
         {/* Базовые пресеты */}
@@ -94,10 +111,11 @@ export const RoomSettingsModal: React.FC<Props> = ({
             <button
               key={color}
               onClick={() => setBgColor(color)}
-              style={{ backgroundColor: color }}
-              className={`w-10 h-10 rounded-full ring-2 transition ${
-                bgColor === color ? 'ring-primary' : 'ring-transparent'
-              }`}
+              style={{
+                backgroundColor: color,
+                border: `2px solid ${bgColor === color ? theme.palette.primary.main : 'transparent'}`,
+              }}
+              className="w-10 h-10 rounded-full transition"
             />
           ))}
         </div>
@@ -108,14 +126,20 @@ export const RoomSettingsModal: React.FC<Props> = ({
             <div key={color} className="relative">
               <button
                 onClick={() => setBgColor(color)}
-                style={{ backgroundColor: color }}
-                className={`w-10 h-10 rounded-full ring-2 transition ${
-                  bgColor === color ? 'ring-primary' : 'ring-transparent'
-                }`}
+                style={{
+                  backgroundColor: color,
+                  border: `2px solid ${bgColor === color ? theme.palette.primary.main : 'transparent'}`,
+                }}
+                className="w-10 h-10 rounded-full transition"
               />
               <button
                 onClick={() => removeUserPreset(color)}
-                className="absolute -top-1 -right-1 bg-white rounded-full w-4 h-4 flex items-center justify-center text-xs"
+                className="absolute -top-1 -right-1 rounded-full w-4 h-4 flex items-center justify-center text-xs"
+                style={{
+                  backgroundColor: theme.palette.background.paper,
+                  color: theme.palette.error.main,
+                  border: `1px solid ${theme.palette.divider}`,
+                }}
               >
                 &minus;
               </button>
@@ -123,7 +147,12 @@ export const RoomSettingsModal: React.FC<Props> = ({
           ))}
           <button
             onClick={onAddColorClick}
-            className="px-3 py-1 border rounded hover:bg-gray-100 transition"
+            className="px-3 py-1 rounded transition"
+            style={{
+              border: `1px solid ${theme.palette.divider}`,
+              backgroundColor: theme.palette.action.hover,
+              color: theme.palette.text.primary,
+            }}
           >
             Добавить цвет
           </button>
@@ -132,11 +161,14 @@ export const RoomSettingsModal: React.FC<Props> = ({
         {/* Цветовой пикер поверх */}
         {showPicker && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-            <div className="bg-surface rounded-lg p-4 space-y-4">
-              <HexColorPicker
-                color={tempPickerColor}
-                onChange={setTempPickerColor}
-              />
+            <div
+              className="rounded-lg p-4 space-y-4"
+              style={{
+                backgroundColor: theme.palette.background.paper,
+                border: `1px solid ${theme.palette.divider}`,
+              }}
+            >
+              <HexColorPicker color={tempPickerColor} onChange={setTempPickerColor} />
               <div className="flex justify-end space-x-2">
                 <NavButton onClick={cancelPicker}>Отмена</NavButton>
                 <NavButton onClick={confirmPicker}>OK</NavButton>
