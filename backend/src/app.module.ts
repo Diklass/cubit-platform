@@ -14,6 +14,8 @@ import { RolesGuard } from './auth/roles.guard';
 import { FilesController } from './files/files.controller';
 import { ChatsModule } from './chats/chats.module';
 
+import { SubjectsModule } from './subjects/subjects.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -22,6 +24,7 @@ import { ChatsModule } from './chats/chats.module';
     LessonsModule,
     RoomsModule,
     ChatsModule,
+    SubjectsModule,
   ],
   controllers: [AppController, FilesController,], 
   providers: [

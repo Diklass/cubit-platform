@@ -11,6 +11,8 @@ import { RoomPage } from './pages/RoomPage';
 import ProfilePage from './pages/ProfilePage';
 import { RoleRoute } from './auth/RoleRoute';
 
+import SubjectPage from './pages/SubjectPage';
+
 
 
 function App() {
@@ -39,6 +41,18 @@ function App() {
           </PrivateRoute>
         }
       />
+
+      <Route
+        path="/lessons/:subjectId"
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={['ADMIN', 'TEACHER', 'STUDENT']}>
+              <Layout><SubjectPage /></Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
+      />
+      
       <Route
         path="/rooms"
         element={
