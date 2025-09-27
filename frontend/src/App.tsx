@@ -12,7 +12,8 @@ import ProfilePage from './pages/ProfilePage';
 import { RoleRoute } from './auth/RoleRoute';
 
 import SubjectPage from './pages/SubjectPage';
-
+import LessonEditor from './pages/LessonEditor';
+import LessonEditorPage from './pages/LessonEditorPage';
 
 
 function App() {
@@ -37,6 +38,28 @@ function App() {
           <PrivateRoute>
             <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
               <Layout><LessonsList /></Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+  path="/lessons/edit/:id"
+  element={
+    <PrivateRoute>
+      <RoleRoute allowRoles={['ADMIN','TEACHER']}>
+        <Layout><LessonEditorPage /></Layout>
+      </RoleRoute>
+    </PrivateRoute>
+  }
+/>
+
+      <Route
+        path="/lessons/edit/:lessonId"
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={['TEACHER']}>
+              <Layout><LessonEditor /></Layout>
             </RoleRoute>
           </PrivateRoute>
         }

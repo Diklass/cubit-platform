@@ -21,6 +21,13 @@ export class SubjectsService {
   });
 }
 
+async updateLesson(id: string, data: { title?: string; content?: string }) {
+  return this.prisma.lesson.update({
+    where: { id },
+    data,
+  });
+}
+
 async createModule(subjectId: string, title: string, parentId?: string) {
   return this.prisma.module.create({
     data: {
@@ -35,6 +42,38 @@ async createLesson(moduleId: string, title: string, teacherId: string) {
   return this.prisma.lesson.create({
     data: { title, moduleId, teacherId },
   });
+}
+
+async findLesson(id: string) {
+  const lesson = await this.prisma.lesson.findUnique({
+    where: { id },
+    select: { id: true, title: true, content: true },
+  });
+  if (!lesson) throw new NotFoundException('Lesson not found');
+  return lesson;
+}
+
+async getLesson(id: string) {
+  return this.prisma.lesson.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      title: true,
+      content: true,
+    },
+  });
+}
+
+async deleteSubject(id: string) {
+  return this.prisma.subject.delete({ where: { id } });
+}
+
+async deleteModule(id: string) {
+  return this.prisma.module.delete({ where: { id } });
+}
+
+async deleteLesson(id: string) {
+  return this.prisma.lesson.delete({ where: { id } });
 }
 
   async findAll() {
@@ -60,6 +99,8 @@ async createLesson(moduleId: string, title: string, teacherId: string) {
       select: { id: true, title: true },
     });
     if (!subject) throw new NotFoundException('Subject not found');
+
+    
 
     // берём все модули этого предмета (плоско)
     const modules = await this.prisma.module.findMany({

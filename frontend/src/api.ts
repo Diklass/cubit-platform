@@ -1,5 +1,14 @@
 import axios from 'axios';
 
+// удалить урок
+export const deleteLesson = (id: string) => api.delete(`/subjects/lessons/${id}`);
+
+// удалить модуль
+export const deleteModule = (id: string) => api.delete(`/subjects/modules/${id}`);
+
+// удалить предмет
+export const deleteSubject = (id: string) => api.delete(`/subjects/${id}`);
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
   withCredentials: true,

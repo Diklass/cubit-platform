@@ -4,6 +4,7 @@ import api from '../api';
 import { SidebarTree, ModuleNode } from '../components/SidebarTree';
 import { LessonContent } from '../components/LessonContent';
 import { Button, TextField, Box } from '@mui/material';
+import { deleteLesson, deleteModule } from '../api';
 
 type SubjectDetail = { id: string; title: string; tree: ModuleNode[] };
 
@@ -70,6 +71,27 @@ export default function SubjectPage() {
           onSelectLesson={handleSelectLesson}
           selectedLessonId={selectedLessonId}
           onAddLesson={handleAddLesson}
+          currentRole={'ADMIN'} // тут потом лучше подставить реальную роль из профиля
+          onDeleteLesson={async (lessonId) => {
+            if (!subjectId) return;
+            try {
+              await deleteLesson(lessonId);
+              const r = await api.get<SubjectDetail>(`/subjects/${subjectId}`);
+              setData(r.data);
+            } catch (e) {
+              alert('Ошибка при удалении урока');
+            }
+          }}
+          onDeleteModule={async (moduleId) => {
+            if (!subjectId) return;
+            try {
+              await deleteModule(moduleId);
+              const r = await api.get<SubjectDetail>(`/subjects/${subjectId}`);
+              setData(r.data);
+            } catch (e) {
+              alert('Ошибка при удалении модуля');
+            }
+          }}
         />
       </div>
       <div className="flex-1">

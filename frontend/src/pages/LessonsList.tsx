@@ -3,6 +3,7 @@ import api from '../api';
 import { Card, CardActionArea, CardContent, Typography, Grid, Button, TextField, Box } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import type { Subject } from '../types/lessons';
+import { deleteSubject } from '../api';
 
 const LessonsList: React.FC = () => {
   const [subjects, setSubjects] = useState<Subject[] | null>(null);
@@ -66,6 +67,25 @@ const LessonsList: React.FC = () => {
                     </Typography>
                   </CardContent>
                 </CardActionArea>
+                {/* 👇 Кнопка удаления */}
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 1 }}>
+                  <Button
+                    size="small"
+                    color="error"
+                    onClick={async () => {
+                      if (confirm(`Удалить предмет "${s.title}"?`)) {
+                        try {
+                          await deleteSubject(s.id);
+                          loadSubjects();
+                        } catch {
+                          alert('Ошибка при удалении предмета');
+                        }
+                      }
+                    }}
+                  >
+                    🗑 Удалить
+                  </Button>
+                </Box>
               </Card>
             </Grid>
           ))}
