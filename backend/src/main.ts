@@ -6,7 +6,7 @@ import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import * as cookieParser from 'cookie-parser';
-import * as express from 'express'; // ← ДОБАВЬ
+import * as express from 'express'; 
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -18,8 +18,14 @@ async function bootstrap() {
     }),
   );
 
+  // ✅ список доменов для фронтенда
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'https://твойдомен.com', // ← добавишь свой прод-URL
+  ];
+
   app.enableCors({
-    origin: 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
   });
   app.use(cookieParser());
@@ -29,8 +35,10 @@ async function bootstrap() {
   app.use(
     '/uploads',
     express.static(STATIC_DIR, {
-      setHeaders: (res) => {
-        res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+      setHeaders: (res, path) => {
+        // Берём первый origin (или динамически можно из запроса)
+        const origin = allowedOrigins[0];
+        res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');

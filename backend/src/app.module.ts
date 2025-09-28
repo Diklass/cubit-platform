@@ -16,6 +16,8 @@ import { ChatsModule } from './chats/chats.module';
 
 import { SubjectsModule } from './subjects/subjects.module';
 
+import { UploadsModule } from './uploads/uploads.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -25,6 +27,7 @@ import { SubjectsModule } from './subjects/subjects.module';
     RoomsModule,
     ChatsModule,
     SubjectsModule,
+    UploadsModule,
   ],
   controllers: [AppController, FilesController,], 
   providers: [

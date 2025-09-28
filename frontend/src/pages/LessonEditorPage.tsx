@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/LessonEditorPage.tsx
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import {
@@ -13,8 +14,8 @@ import {
   Snackbar,
   MenuItem,
   Select,
+  Menu,
 } from '@mui/material';
-import { SpeedDial, SpeedDialAction, SpeedDialIcon } from '@mui/material';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import ImageIcon from '@mui/icons-material/Image';
 import MovieIcon from '@mui/icons-material/Movie';
@@ -23,6 +24,7 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import AddIcon from '@mui/icons-material/Add';
 
 import {
   DndContext,
@@ -39,6 +41,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { motion, AnimatePresence } from 'framer-motion';
+
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 type Block = { type: string; content: string };
 type Lesson = { id: string; title: string; content: string | null };
@@ -68,6 +73,7 @@ function SortableItem({
 export default function LessonEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,6 +84,8 @@ export default function LessonEditorPage() {
   const [deletedBlock, setDeletedBlock] = useState<Block | null>(null);
   const [deletedIndex, setDeletedIndex] = useState<number | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
+
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -95,10 +103,16 @@ export default function LessonEditorPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // ➕ добавить блок
   const handleAddBlock = (type: string) => {
-    setBlocks([...blocks, { type, content: '' }]);
+    setBlocks((prev) => [...prev, { type, content: '' }]);
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    setMenuAnchor(null); // закрываем меню
   };
 
+  // 🗑 удалить блок
   const handleDeleteBlock = (idx: number) => {
     if (confirm('Удалить этот блок?')) {
       setDeletedBlock(blocks[idx]);
@@ -119,11 +133,13 @@ export default function LessonEditorPage() {
     setSnackbarOpen(false);
   };
 
+  // 🔼🔽 переместить блок
   const moveBlock = (from: number, to: number) => {
     if (to < 0 || to >= blocks.length) return;
     setBlocks(arrayMove(blocks, from, to));
   };
 
+  // 💾 сохранить урок
   const handleSave = async () => {
     if (!id) return;
     await api.patch(`/subjects/lessons/${id}`, {
@@ -133,12 +149,23 @@ export default function LessonEditorPage() {
     navigate(-1);
   };
 
+  // 🖱 drag'n'drop
   const handleDragEnd = ({ active, over }: any) => {
     if (over && active.id !== over.id) {
       const oldIndex = parseInt(active.id, 10);
       const newIndex = parseInt(over.id, 10);
       setBlocks((items) => arrayMove(items, oldIndex, newIndex));
     }
+  };
+
+  // 📤 загрузка файлов
+  const uploadLessonFile = async (file: File): Promise<string> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const { data } = await api.post('/uploads', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return `http://localhost:3001${data.url}`;
   };
 
   if (loading) {
@@ -160,7 +187,7 @@ export default function LessonEditorPage() {
   }
 
   return (
-    <Box sx={{ pt: 3, pb: 12, px: 2 }}>
+    <Box sx={{ pt: 3, pb: 12, px: 2, maxHeight: '100vh', overflowY: 'auto' }}>
       {/* Название урока */}
       <TextField
         label="Название урока"
@@ -183,10 +210,24 @@ export default function LessonEditorPage() {
           )}
           {blocks.map((b, idx) => (
             <Box key={idx} sx={{ mb: 2 }}>
-              {b.type === 'text' && <Typography>{b.content}</Typography>}
-              {b.type === 'image' && <Typography>[Изображение]</Typography>}
-              {b.type === 'video' && <Typography>Видео: {b.content}</Typography>}
-              {b.type === 'file' && <Typography>Файл прикреплён</Typography>}
+              {b.type === 'text' && (
+                <div dangerouslySetInnerHTML={{ __html: b.content }} />
+              )}
+              {b.type === 'image' && b.content && (
+                <img
+                  src={b.content}
+                  alt="Изображение"
+                  style={{ maxWidth: '300px', borderRadius: 8 }}
+                />
+              )}
+              {b.type === 'video' && (
+                <Typography color="text.secondary">Видео: {b.content}</Typography>
+              )}
+              {b.type === 'file' && b.content && (
+                <a href={b.content} target="_blank" rel="noreferrer">
+                  📎 {decodeURIComponent(b.content.split('/').pop() || 'Файл')}
+                </a>
+              )}
             </Box>
           ))}
         </Box>
@@ -236,21 +277,109 @@ export default function LessonEditorPage() {
                             </Select>
 
                             {b.type === 'text' && (
-                              <TextField
-                                fullWidth
-                                multiline
-                                placeholder="Введите текст..."
+                              <ReactQuill
                                 value={b.content}
-                                onChange={(e) => {
+                                onChange={(val) => {
                                   const copy = [...blocks];
-                                  copy[idx].content = e.target.value;
+                                  copy[idx].content = val;
                                   setBlocks(copy);
                                 }}
+                                modules={{
+                                  toolbar: [
+                                    ['bold', 'italic', 'underline', 'strike'],
+                                    [{ header: [1, 2, 3, false] }],
+                                    [{ list: 'ordered' }, { list: 'bullet' }],
+                                    ['link', 'clean'],
+                                  ],
+                                }}
+                                formats={[
+                                  'header',
+                                  'bold', 'italic', 'underline', 'strike',
+                                  'list', 'bullet',
+                                  'link',
+                                ]}
+                                placeholder="Введите текст..."
+                                style={{ minHeight: 120 }}
                               />
                             )}
+
                             {b.type === 'image' && (
-                              <Button variant="outlined">Загрузить изображение</Button>
+                              <>
+                                {b.content ? (
+                                  <Box>
+                                    <img
+                                      src={b.content}
+                                      alt="Превью"
+                                      style={{
+                                        maxWidth: '300px',
+                                        borderRadius: 8,
+                                        marginBottom: 8,
+                                      }}
+                                    />
+                                    <Stack direction="row" spacing={1}>
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={async () => {
+                                          const input =
+                                            document.createElement('input');
+                                          input.type = 'file';
+                                          input.accept = 'image/*';
+                                          input.onchange = async () => {
+                                            const file = input.files?.[0];
+                                            if (file) {
+                                              const url =
+                                                await uploadLessonFile(file);
+                                              const copy = [...blocks];
+                                              copy[idx].content = url;
+                                              setBlocks(copy);
+                                            }
+                                          };
+                                          input.click();
+                                        }}
+                                      >
+                                        Заменить
+                                      </Button>
+                                      <Button
+                                        size="small"
+                                        color="error"
+                                        onClick={() => {
+                                          const copy = [...blocks];
+                                          copy[idx].content = '';
+                                          setBlocks(copy);
+                                        }}
+                                      >
+                                        Удалить
+                                      </Button>
+                                    </Stack>
+                                  </Box>
+                                ) : (
+                                  <Button
+                                    variant="outlined"
+                                    onClick={async () => {
+                                      const input =
+                                        document.createElement('input');
+                                      input.type = 'file';
+                                      input.accept = 'image/*';
+                                      input.onchange = async () => {
+                                        const file = input.files?.[0];
+                                        if (file) {
+                                          const url =
+                                            await uploadLessonFile(file);
+                                          const copy = [...blocks];
+                                          copy[idx].content = url;
+                                          setBlocks(copy);
+                                        }
+                                      };
+                                      input.click();
+                                    }}
+                                  >
+                                    Загрузить изображение
+                                  </Button>
+                                )}
+                              </>
                             )}
+
                             {b.type === 'video' && (
                               <TextField
                                 fullWidth
@@ -263,7 +392,76 @@ export default function LessonEditorPage() {
                                 }}
                               />
                             )}
-                            {b.type === 'file' && <Button variant="outlined">Прикрепить файл</Button>}
+
+                            {b.type === 'file' && (
+                              <>
+                                {b.content ? (
+                                  <Box>
+                                    <a
+                                      href={b.content}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{ display: 'block', marginBottom: 8 }}
+                                    >
+                                      📎 {decodeURIComponent(b.content.split('/').pop() || 'Файл')}
+                                    </a>
+                                    <Stack direction="row" spacing={1}>
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={async () => {
+                                          const input = document.createElement('input');
+                                          input.type = 'file';
+                                          input.onchange = async () => {
+                                            const file = input.files?.[0];
+                                            if (file) {
+                                              const url = await uploadLessonFile(file);
+                                              const copy = [...blocks];
+                                              copy[idx].content = url;
+                                              setBlocks(copy);
+                                            }
+                                          };
+                                          input.click();
+                                        }}
+                                      >
+                                        Заменить
+                                      </Button>
+                                      <Button
+                                        size="small"
+                                        color="error"
+                                        onClick={() => {
+                                          const copy = [...blocks];
+                                          copy[idx].content = '';
+                                          setBlocks(copy);
+                                        }}
+                                      >
+                                        Удалить
+                                      </Button>
+                                    </Stack>
+                                  </Box>
+                                ) : (
+                                  <Button
+                                    variant="outlined"
+                                    onClick={async () => {
+                                      const input = document.createElement('input');
+                                      input.type = 'file';
+                                      input.onchange = async () => {
+                                        const file = input.files?.[0];
+                                        if (file) {
+                                          const url = await uploadLessonFile(file);
+                                          const copy = [...blocks];
+                                          copy[idx].content = url;
+                                          setBlocks(copy);
+                                        }
+                                      };
+                                      input.click();
+                                    }}
+                                  >
+                                    Прикрепить файл
+                                  </Button>
+                                )}
+                              </>
+                            )}
                           </Box>
 
                           {/* справа иконки */}
@@ -291,69 +489,94 @@ export default function LessonEditorPage() {
                   )}
                 </SortableItem>
               ))}
+              <div ref={bottomRef} />
             </AnimatePresence>
           </SortableContext>
         </DndContext>
       )}
 
-      {/* Нижняя панель */}
-      <Paper
-        elevation={3}
+      {/* Плавающая панель */}
+      <Box
         sx={{
           position: 'fixed',
           bottom: 16,
           left: '50%',
           transform: 'translateX(-50%)',
-          width: '95%',
-          maxWidth: 800,
-          borderRadius: 4,
-          p: 2,
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          backdropFilter: 'blur(8px)',
+          gap: 1.5,
         }}
       >
-        <Button onClick={() => setPreview(!preview)}>
-          {preview ? 'Редактировать' : 'Предпросмотр'}
-        </Button>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button variant="outlined" onClick={() => navigate(-1)}>
+        {/* Капсула с кнопками */}
+        <Paper
+          elevation={3}
+          sx={{
+            borderRadius: 99,
+            px: 2,
+            py: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <Button
+            onClick={() => setPreview(!preview)}
+            sx={{ borderRadius: 99, textTransform: 'none' }}
+          >
+            {preview ? 'Редактировать' : 'Предпросмотр'}
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => navigate(-1)}
+            sx={{ borderRadius: 99, textTransform: 'none' }}
+          >
             Отмена
           </Button>
-          <Button variant="contained" onClick={handleSave}>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            sx={{ borderRadius: 99, textTransform: 'none' }}
+          >
             Сохранить
           </Button>
-        </Box>
-      </Paper>
+        </Paper>
 
-      {/* FAB */}
-      {!preview && (
-        <Box sx={{ position: 'fixed', bottom: 90, right: 24 }}>
-          <SpeedDial ariaLabel="Добавить блок" icon={<SpeedDialIcon />}>
-            <SpeedDialAction
-              icon={<TextFieldsIcon />}
-              tooltipTitle="Текст"
-              onClick={() => handleAddBlock('text')}
-            />
-            <SpeedDialAction
-              icon={<ImageIcon />}
-              tooltipTitle="Изображение"
-              onClick={() => handleAddBlock('image')}
-            />
-            <SpeedDialAction
-              icon={<MovieIcon />}
-              tooltipTitle="Видео"
-              onClick={() => handleAddBlock('video')}
-            />
-            <SpeedDialAction
-              icon={<AttachFileIcon />}
-              tooltipTitle="Файл"
-              onClick={() => handleAddBlock('file')}
-            />
-          </SpeedDial>
-        </Box>
-      )}
+        {/* Кнопка + отдельно справа */}
+        <IconButton
+          sx={{
+            borderRadius: 3,
+            width: 48,
+            height: 48,
+            backgroundColor: 'primary.main',
+            color: 'primary.contrastText',
+            '&:hover': { backgroundColor: 'primary.dark' },
+          }}
+          onClick={(e) => setMenuAnchor(e.currentTarget)}
+        >
+          <AddIcon />
+        </IconButton>
+
+        {/* Меню добавления блоков */}
+        <Menu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={() => setMenuAnchor(null)}
+        >
+          <MenuItem onClick={() => handleAddBlock('text')}>
+            <TextFieldsIcon fontSize="small" sx={{ mr: 1 }} /> Текст
+          </MenuItem>
+          <MenuItem onClick={() => handleAddBlock('image')}>
+            <ImageIcon fontSize="small" sx={{ mr: 1 }} /> Изображение
+          </MenuItem>
+          <MenuItem onClick={() => handleAddBlock('video')}>
+            <MovieIcon fontSize="small" sx={{ mr: 1 }} /> Видео
+          </MenuItem>
+          <MenuItem onClick={() => handleAddBlock('file')}>
+            <AttachFileIcon fontSize="small" sx={{ mr: 1 }} /> Файл
+          </MenuItem>
+        </Menu>
+      </Box>
 
       {/* Snackbar для отмены */}
       <Snackbar
