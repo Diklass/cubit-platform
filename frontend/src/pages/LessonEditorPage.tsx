@@ -32,6 +32,9 @@ import { useLayoutEffect } from "react";
 
 import { useCallback } from "react";
 
+import { SidebarTree, ModuleNode } from "../components/SidebarTree";
+import { SubjectSidebar } from "../components/SubjectSidebar";
+
 import {
   DndContext,
   pointerWithin,
@@ -63,7 +66,20 @@ type Section = {
   color?: string;
 };
 
-type Lesson = { id: string; title: string; content: string | null };
+type Lesson = {
+  id: string;
+  title: string;
+  content: string | null;
+  subjectId?: string;
+  module?: {
+    id: string;
+    title: string;
+    subject?: {
+      id: string;
+      title: string;
+    };
+  };
+};
 
 type Snapshot = { title: string; sections: Section[] };
 
@@ -187,6 +203,8 @@ const [historyIndex, setHistoryIndex] = useState(-1);
   const historyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSnapshotRef = useRef<string>("");
 
+  const [newModuleTitle, setNewModuleTitle] = useState("");
+
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -196,6 +214,8 @@ const [historyIndex, setHistoryIndex] = useState(-1);
 const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 const eq = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
 
+
+
   // === Загрузка урока ===
    useEffect(() => {
     if (!id) return;
@@ -203,6 +223,7 @@ const eq = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
     api
       .get<Lesson>(`/subjects/lessons/${id}`)
       .then((r) => {
+        console.log("Ответ от сервера для урока:", r.data);
         setLesson(r.data);
         setTitle(r.data.title);
         let parsed: Section[] = [];
@@ -439,9 +460,51 @@ if (loading) return <CircularProgress />;
   if (!lesson)
     return <Typography color="error">Ошибка: урок не найден</Typography>;
 
-  return (
-    <Box sx={{ pt: 3, pb: 12, px: 2, maxHeight: "100vh", overflowY: "auto" }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+return (
+    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    {/* === Левая панель (SidebarTree) === */}
+        {lesson?.module?.subject?.id ? (
+      <SubjectSidebar
+        subjectId={lesson.module.subject.id}
+        currentLessonId={id}
+        currentRole="TEACHER"
+        onSelectLesson={(lessonId) => navigate(`/lessons/edit/${lessonId}`)}
+      />
+    ) : (
+      <Box
+        sx={{
+          width: 320,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRight: (theme) => `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Typography color="text.secondary" variant="body2">
+          Загрузка панели...
+        </Typography>
+      </Box>
+    )}
+
+
+    {/* === Правая область: Редактор урока === */}
+    <Box
+      sx={{
+        flexGrow: 1,
+        p: 3,
+        overflowY: "auto",
+        backgroundColor: (theme) => theme.palette.background.default,
+        color: (theme) => theme.palette.text.primary,
+        transition: "background-color 0.3s, color 0.3s",
+      }}
+    >
+      {/* === Заголовок и статус сохранения === */}
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ mb: 3 }}
+      >
         <TextField
           label="Название урока"
           value={title}
@@ -453,7 +516,7 @@ if (loading) return <CircularProgress />;
           fullWidth
         />
 
-        {/* === Индикатор сохранения === */}
+         {/* === Индикатор сохранения === */}
         <Box
           sx={{
             ml: 2,
@@ -468,14 +531,14 @@ if (loading) return <CircularProgress />;
               saveStatus === "saved"
                 ? "rgba(76, 175, 80, 0.15)" // зелёный фон
                 : saveStatus === "unsaved"
-                  ? "rgba(255, 193, 7, 0.15)" // жёлтый фон
-                  : "rgba(244, 67, 54, 0.15)", // красный фон
+                ? "rgba(255, 193, 7, 0.15)" // жёлтый фон
+                : "rgba(244, 67, 54, 0.15)", // красный фон
             color:
               saveStatus === "saved"
                 ? "#4CAF50"
                 : saveStatus === "unsaved"
-                  ? "#FFC107"
-                  : "#F44336",
+                ? "#FFC107"
+                : "#F44336",
             transition: "all 0.3s ease",
           }}
         >
@@ -1002,7 +1065,7 @@ if (loading) return <CircularProgress />;
       </Box>
 
       {/* Snackbar */}
-      <Snackbar
+           <Snackbar
         open={snackbarOpen}
         autoHideDuration={4000}
         onClose={() => setSnackbarOpen(false)}
@@ -1015,11 +1078,12 @@ if (loading) return <CircularProgress />;
       />
 
       <Snackbar
-  open={autoSaveNotice}
-  autoHideDuration={2000}
-  message={`✅ Сохранено в ${lastSavedAt}`}
-  anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-/>
+        open={autoSaveNotice}
+        autoHideDuration={2000}
+        message={`✅ Сохранено в ${lastSavedAt}`}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      />
     </Box>
+  </Box>
   );
 }

@@ -47,7 +47,13 @@ async createLesson(moduleId: string, title: string, teacherId: string) {
 async findLesson(id: string) {
   const lesson = await this.prisma.lesson.findUnique({
     where: { id },
-    select: { id: true, title: true, content: true },
+    include: {
+      module: {
+        include: {
+          subject: true,
+        },
+      },
+    },
   });
   if (!lesson) throw new NotFoundException('Lesson not found');
   return lesson;
