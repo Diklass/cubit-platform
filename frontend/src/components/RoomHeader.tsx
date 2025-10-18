@@ -1,8 +1,8 @@
 // src/components/RoomHeader.tsx
-import React from 'react';
-import fullscreenIcon from '../assets/icons/fullscreen.svg';
-import editIcon       from '../assets/icons/setting.svg';
-import chatIcon       from '../assets/icons/chat.svg';
+import React from "react";
+import fullscreenIcon from "../assets/icons/fullscreen.svg";
+import editIcon from "../assets/icons/setting.svg";
+import chatIcon from "../assets/icons/chat.svg";
 
 interface RoomHeaderProps {
   name: string;
@@ -12,7 +12,9 @@ interface RoomHeaderProps {
   onEdit: () => void;
   onFullscreen: () => void;
   onChat: () => void;
-  compact?: boolean; // <- когда true, панель схлопывается
+  compact?: boolean;
+  /** ✅ новый флаг — можно ли редактировать (только для учителей/админов) */
+  isTeacher?: boolean;
 }
 
 export const RoomHeader: React.FC<RoomHeaderProps> = ({
@@ -24,6 +26,7 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
   onFullscreen,
   onChat,
   compact = false,
+  isTeacher = false,
 }) => {
   if (compact) {
     // --- УЗКАЯ ПОЛОСА (для режима чата) ---
@@ -31,22 +34,20 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
       <div
         className="relative flex-shrink-0 h-[56px] rounded-lg mx-[20px] mt-[10px] overflow-hidden border border-gray-200"
         style={{
-          backgroundColor: bgColor || 'var(--md-sys-color-surface)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundColor: bgColor || "var(--md-sys-color-surface)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
         }}
       >
-        {/* Лёгкая подложка */}
         <div className="absolute inset-0 bg-primary-container/60" />
 
-        {/* Контент: заголовок слева, маленькие круглые кнопки справа */}
         <div className="relative z-[1] h-full px-[12px] flex items-center justify-between">
           <div className="min-w-0 pr-2">
             <h1 className="text-white text-[18px] font-semibold truncate">{name}</h1>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* К чатам/к материалам */}
+            {/* Чат */}
             <button
               onClick={onChat}
               aria-label="Чат / К материалам"
@@ -66,33 +67,34 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
               <img src={fullscreenIcon} alt="" className="w-4 h-4" />
             </button>
 
-            {/* Настройки */}
-            <button
-              onClick={onEdit}
-              aria-label="Настройки"
-              className="p-2 rounded-full bg-white/90 hover:bg-white transition shadow"
-              title="Настройки"
-            >
-              <img src={editIcon} alt="" className="w-4 h-4" />
-            </button>
+            {/* ⚙ Настройки — только если isTeacher === true */}
+            {isTeacher && (
+              <button
+                onClick={onEdit}
+                aria-label="Настройки"
+                className="p-2 rounded-full bg-white/90 hover:bg-white transition shadow"
+                title="Настройки"
+              >
+                <img src={editIcon} alt="" className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
-  // --- РАЗВЁРНУТАЯ ШАПКА (как у тебя было, с минимальными правками) ---
+  // --- РАЗВЁРНУТАЯ ШАПКА ---
   return (
     <div
       className="relative flex-shrink-0 h-[200px] rounded-lg mx-[20px] mt-[10px] overflow-hidden"
       style={{
         backgroundColor: bgColor,
         backgroundImage: bgImagePreview ? `url(${bgImagePreview})` : undefined,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        backgroundSize: "cover",
+        backgroundPosition: "center",
       }}
     >
-      {/* Фоновая полупрозрачная заливка */}
       <div className="absolute inset-0 bg-primary-container/80"></div>
 
       {/* Название комнаты */}
@@ -100,11 +102,9 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
         {name}
       </h1>
 
-      {/* Код + Fullscreen */}
+      {/* Код курса + кнопка фуллскрина */}
       <div className="relative flex items-center gap-2 pl-[20px] mt-2">
-        <span className="text-white text-[18px] font-medium">
-          Код курса: {code}
-        </span>
+        <span className="text-white text-[18px] font-medium">Код курса: {code}</span>
         <button
           onClick={onFullscreen}
           className="p-2 rounded-full bg-white/20 hover:bg-white/40 transition"
@@ -115,20 +115,21 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
         </button>
       </div>
 
-      {/* Группа правых кнопок */}
-      <div className="absolute top-[10px] right-[10px] flex items-center gap-2">
-        {/* Настройки */}
-        <button
-          onClick={onEdit}
-          aria-label="Редактировать"
-          className="p-2 bg-white/90 rounded-full shadow hover:bg-white transition"
-          title="Редактировать"
-        >
-          <img src={editIcon} alt="" className="w-5 h-5" />
-        </button>
-      </div>
+      {/* ⚙ Настройки — только для учителей */}
+      {isTeacher && (
+        <div className="absolute top-[10px] right-[10px] flex items-center gap-2">
+          <button
+            onClick={onEdit}
+            aria-label="Редактировать"
+            className="p-2 bg-white/90 rounded-full shadow hover:bg-white transition"
+            title="Редактировать"
+          >
+            <img src={editIcon} alt="" className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
-      {/* Кнопка чата — внизу справа, крупнее */}
+      {/* 💬 Кнопка чата */}
       <button
         onClick={onChat}
         aria-label="Чат"

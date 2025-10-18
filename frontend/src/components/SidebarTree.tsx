@@ -1,14 +1,21 @@
-import React from 'react';
-import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-
-import { LinearProgress, Stack, Typography, Button, Box } from '@mui/material';
-import { calcModuleProgress } from '../utils/progress';
-import { useNavigate } from 'react-router-dom';
+// src/components/SidebarTree.tsx
+import React from "react";
+import { SimpleTreeView } from "@mui/x-tree-view/SimpleTreeView";
+import { TreeItem } from "@mui/x-tree-view/TreeItem";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import {
+  LinearProgress,
+  Stack,
+  Typography,
+  Button,
+  Box,
+} from "@mui/material";
+import { calcModuleProgress } from "../utils/progress";
+import { useNavigate } from "react-router-dom";
 
 type LessonLite = { id: string; title: string; order: number };
+
 export type ModuleNode = {
   id: string;
   title: string;
@@ -24,7 +31,7 @@ interface Props {
   onAddLesson?: (moduleId: string) => void;
   onDeleteLesson?: (lessonId: string) => void;
   onDeleteModule?: (moduleId: string) => void;
-  currentRole: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'GUEST';
+  currentRole: "ADMIN" | "TEACHER" | "STUDENT" | "GUEST";
 }
 
 export const SidebarTree: React.FC<Props> = ({
@@ -37,6 +44,7 @@ export const SidebarTree: React.FC<Props> = ({
   currentRole,
 }) => {
   const navigate = useNavigate();
+  const isReadonly = currentRole === "STUDENT" || currentRole === "GUEST";
 
   const renderNode = (node: ModuleNode) => (
     <TreeItem
@@ -44,12 +52,13 @@ export const SidebarTree: React.FC<Props> = ({
       itemId={node.id}
       label={
         <Stack spacing={0.5}>
+          {/* Заголовок модуля */}
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {node.title}
             </Typography>
 
-            {currentRole !== 'STUDENT' && (
+            {!isReadonly && (
               <Button
                 size="small"
                 color="error"
@@ -65,13 +74,15 @@ export const SidebarTree: React.FC<Props> = ({
             )}
           </Stack>
 
+          {/* Прогресс */}
           <LinearProgress
             variant="determinate"
             value={calcModuleProgress(node)}
             sx={{ height: 6, borderRadius: 1, opacity: 0.9 }}
           />
 
-          {onAddLesson && currentRole !== 'STUDENT' && (
+          {/* Добавить урок — только для учителей */}
+          {!isReadonly && onAddLesson && (
             <Box sx={{ mt: 0.5 }}>
               <Button
                 size="small"
@@ -88,7 +99,7 @@ export const SidebarTree: React.FC<Props> = ({
         </Stack>
       }
     >
-      {/* Уроки */}
+      {/* Список уроков */}
       {node.lessons.map((l) => (
         <TreeItem
           key={l.id}
@@ -104,7 +115,7 @@ export const SidebarTree: React.FC<Props> = ({
                 {l.title}
               </Typography>
 
-              {currentRole !== 'STUDENT' && (
+              {!isReadonly && (
                 <>
                   <Button
                     size="small"
@@ -146,7 +157,7 @@ export const SidebarTree: React.FC<Props> = ({
         collapseIcon: ExpandMoreIcon,
         expandIcon: ChevronRightIcon,
       }}
-      sx={{ flexGrow: 1, overflowY: 'auto', maxHeight: '80vh', p: 1 }}
+      sx={{ flexGrow: 1, overflowY: "auto", maxHeight: "80vh", p: 1 }}
     >
       {tree.map((n) => renderNode(n))}
     </SimpleTreeView>

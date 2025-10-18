@@ -65,8 +65,13 @@ export function RoomPage() {
 
   const theme = useTheme();
 
+    const [codeOverlayOpen, setCodeOverlayOpen] = useState(false);
+
+
   // NEW: состояние свернутого/развернутого композера для материалов
   const [composerOpen, setComposerOpen] = useState(false);
+
+  
 
   // Настройки комнаты (цвет/название)
   const [settings, setSettings] = useState<RoomSettings>({
@@ -76,7 +81,9 @@ export function RoomPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleEdit = () => setSettingsOpen(true);
-  const handleFullscreen = () => {/* ваш код изначально */};
+   const handleFullscreen = () => {
+    setCodeOverlayOpen(true);
+  };
   const handleChat = () => {
     setShowChat(v => {
       const next = !v;
@@ -87,6 +94,15 @@ export function RoomPage() {
       return next;
     });
   };
+
+  useEffect(() => {
+    if (!codeOverlayOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCodeOverlayOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [codeOverlayOpen]);
 
   const { messages, setMessages, socket } = useRoomSocket({
     code,
@@ -245,11 +261,73 @@ export function RoomPage() {
         name={info?.title ?? code!}
         code={code!}
         onEdit={handleEdit}
-        onFullscreen={() => {}}
+        onFullscreen={handleFullscreen}
         onChat={handleChat}
         bgColor={settings.bgColor}
-        compact={showChat}          // <<< ВАЖНО
+        compact={showChat}
+        isTeacher={isTeacher}
       />
+
+
+      {/* ✅ Полноэкранный показ кода */}
+      {codeOverlayOpen && (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+          onClick={() => setCodeOverlayOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="rounded-2xl p-8 mx-4 shadow-2xl text-center"
+            style={{
+              backgroundColor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+              maxWidth: 720,
+              width: "100%",
+            }}
+          >
+            <div className="mb-4 text-xl opacity-80">Код курса</div>
+            <div
+              className="font-mono font-bold tracking-widest break-all select-all"
+              style={{ fontSize: "clamp(28px, 8vw, 72px)" }}
+            >
+              {code}
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-3">
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(code);
+                    alert("✅ Код скопирован в буфер обмена");
+                  } catch {
+                    alert("❌ Не удалось скопировать");
+                  }
+                }}
+                className="px-5 py-2 rounded-full font-medium hover:opacity-90 transition"
+                style={{
+                  backgroundColor: theme.palette.primary.main,
+                  color: theme.palette.primary.contrastText,
+                }}
+              >
+                Скопировать
+              </button>
+
+              <button
+                onClick={() => setCodeOverlayOpen(false)}
+                className="px-5 py-2 rounded-full font-medium hover:opacity-80 transition"
+                style={{
+                  backgroundColor: theme.palette.action.hover,
+                  color: theme.palette.text.primary,
+                }}
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Модалка настроек */}
       <RoomSettingsModal

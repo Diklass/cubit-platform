@@ -3,11 +3,15 @@ import React, { useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { LessonContent } from "../components/LessonContent";
 import { SubjectSidebar } from "../components/SubjectSidebar";
+import { useAuth } from "../auth/AuthContext"; // ✅ добавляем импорт
 
 export default function SubjectPage() {
   const { subjectId } = useParams();
   const [sp, setSp] = useSearchParams();
   const selectedLessonId = sp.get("lessonId") ?? undefined;
+
+  const { user } = useAuth(); // ✅ получаем пользователя
+  const role = user?.role ?? "GUEST"; // если не авторизован
 
   const handleSelectLesson = (lessonId: string) => {
     sp.set("lessonId", lessonId);
@@ -19,7 +23,7 @@ export default function SubjectPage() {
       <SubjectSidebar
         subjectId={subjectId}
         currentLessonId={selectedLessonId}
-        currentRole="ADMIN"
+        currentRole={role} // ✅ теперь передаём настоящую роль
         onSelectLesson={handleSelectLesson}
       />
       <div className="flex-1 overflow-auto">

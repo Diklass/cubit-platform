@@ -1,6 +1,13 @@
 // src/components/SubjectSidebar.tsx
-import React, { useEffect, useMemo, useState } from "react";
-import { Box, TextField, Button, IconButton, Tooltip, Divider } from "@mui/material";
+import React, { useEffect, useState } from "react";
+import {
+  Box,
+  TextField,
+  Button,
+  IconButton,
+  Tooltip,
+  Divider,
+} from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import api from "../api";
@@ -11,10 +18,7 @@ interface SubjectSidebarProps {
   currentLessonId?: string;
   currentRole?: "ADMIN" | "TEACHER" | "STUDENT" | "GUEST";
   onSelectLesson: (lessonId: string) => void;
-
-  /** можно выключить кнопку сворачивания, если не нужна */
   collapsible?: boolean;
-  /** ключ, под которым хранится состояние в localStorage */
   storageKey?: string;
 }
 
@@ -29,6 +33,8 @@ export const SubjectSidebar: React.FC<SubjectSidebarProps> = ({
   const [tree, setTree] = useState<ModuleNode[]>([]);
   const [newModuleTitle, setNewModuleTitle] = useState("");
 
+  const isReadonly = currentRole === "STUDENT" || currentRole === "GUEST";
+
   // === открыт/закрыт (с памятью) ===
   const [isOpen, setIsOpen] = useState<boolean>(() => {
     try {
@@ -38,6 +44,7 @@ export const SubjectSidebar: React.FC<SubjectSidebarProps> = ({
       return true;
     }
   });
+
   useEffect(() => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(isOpen));
@@ -60,7 +67,7 @@ export const SubjectSidebar: React.FC<SubjectSidebarProps> = ({
     loadTree();
   }, [subjectId]);
 
-  // === Добавление модуля ===
+  // === Добавление модуля (только для преподавателя) ===
   const handleAddModule = async () => {
     if (!subjectId || !newModuleTitle.trim()) return;
     await api.post(`/subjects/${subjectId}/modules`, { title: newModuleTitle });
@@ -90,7 +97,6 @@ export const SubjectSidebar: React.FC<SubjectSidebarProps> = ({
     await loadTree();
   };
 
-  // размеры
   const sidebarWidth = isOpen ? 320 : 56;
 
   return (
@@ -126,10 +132,20 @@ export const SubjectSidebar: React.FC<SubjectSidebarProps> = ({
         </Tooltip>
       )}
 
-      {/* Контент при открытом состоянии */}
       {isOpen ? (
-        <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1, overflowY: "auto" }}>
-          {currentRole !== "STUDENT" && (
+        <Box
+          sx={{
+            p: 2,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            minWidth: 0,
+            flex: 1,
+            overflowY: "auto",
+          }}
+        >
+          {/* Добавление модуля — только не для студентов */}
+          {!isReadonly && (
             <Box sx={{ display: "flex", gap: 1 }}>
               <TextField
                 size="small"
@@ -150,14 +166,13 @@ export const SubjectSidebar: React.FC<SubjectSidebarProps> = ({
             tree={tree}
             selectedLessonId={currentLessonId}
             onSelectLesson={onSelectLesson}
-            onAddLesson={currentRole !== "STUDENT" ? handleAddLesson : undefined}
-            onDeleteLesson={currentRole !== "STUDENT" ? handleDeleteLesson : undefined}
-            onDeleteModule={currentRole !== "STUDENT" ? handleDeleteModule : undefined}
             currentRole={currentRole}
+            onAddLesson={!isReadonly ? handleAddLesson : undefined}
+            onDeleteLesson={!isReadonly ? handleDeleteLesson : undefined}
+            onDeleteModule={!isReadonly ? handleDeleteModule : undefined}
           />
         </Box>
       ) : (
-        // Узкий режим: просто пустая колонка, чтобы UI был аккуратным
         <Box sx={{ flex: 1 }} />
       )}
     </Box>

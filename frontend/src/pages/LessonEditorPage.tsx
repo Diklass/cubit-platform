@@ -463,28 +463,30 @@ if (loading) return <CircularProgress />;
 return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
     {/* === Левая панель (SidebarTree) === */}
-        {lesson?.module?.subject?.id ? (
-      <SubjectSidebar
-        subjectId={lesson.module.subject.id}
-        currentLessonId={id}
-        currentRole="TEACHER"
-        onSelectLesson={(lessonId) => navigate(`/lessons/edit/${lessonId}`)}
-      />
-    ) : (
-      <Box
-        sx={{
-          width: 320,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRight: (theme) => `1px solid ${theme.palette.divider}`,
-        }}
-      >
-        <Typography color="text.secondary" variant="body2">
-          Загрузка панели...
-        </Typography>
-      </Box>
-    )}
+{lesson?.module?.subject?.id ? (
+  <SubjectSidebar
+    subjectId={lesson.module!.subject!.id}
+    currentLessonId={id}
+    currentRole="TEACHER"
+    onSelectLesson={(lessonId) =>
+      navigate(`/lessons/${lesson.module!.subject!.id}?lessonId=${lessonId}`)
+    }
+  />
+) : (
+  <Box
+    sx={{
+      width: 320,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRight: (theme) => `1px solid ${theme.palette.divider}`,
+    }}
+  >
+    <Typography color="text.secondary" variant="body2">
+      Загрузка панели...
+    </Typography>
+  </Box>
+)}
 
 
     {/* === Правая область: Редактор урока === */}
