@@ -22,8 +22,6 @@ export const Header: React.FC = () => {
 
   const tabs = [
     { key: 'lessons',   label: 'Уроки',       to: '/lessons' },
-    { key: 'schedule',  label: 'Расписание',  to: '/schedule' },
-    { key: 'journal',   label: 'Журнал',      to: '/journal' },
     { key: 'rooms',     label: 'Комнаты',     to: '/rooms' },
   ] as const;
 
@@ -95,14 +93,33 @@ export const Header: React.FC = () => {
 
         {user?.role !== 'GUEST' && (
           <NavLink to="/profile" className="block">
-            <img
-              src={avatarSrc}
-              alt="User Avatar"
-              className="w-[42px] h-[42px] rounded-full object-cover"
+            <motion.div
+              className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-semibold shadow-md overflow-hidden cursor-pointer"
               style={{
-                backgroundColor: theme.palette.primary.main,
+                background: `linear-gradient(135deg, ${theme.palette.mode === 'dark'
+                    ? '#6EE7B7, #3B82F6, #9333EA'
+                    : '#3B82F6, #A855F7, #F472B6'
+                  })`,
+                backgroundSize: '200% 200%',
               }}
-            />
+              animate={{
+                backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
+              }}
+              transition={{
+                duration: 6,
+                ease: 'easeInOut',
+                repeat: Infinity,
+              }}
+              whileHover={{
+                scale: 1.1,
+                boxShadow:
+                  theme.palette.mode === 'dark'
+                    ? '0 0 20px rgba(59,130,246,0.4)'
+                    : '0 0 20px rgba(168,85,247,0.3)',
+              }}
+            >
+              {user?.email?.[0]?.toUpperCase() ?? 'U'}
+            </motion.div>
           </NavLink>
         )}
       </div>
