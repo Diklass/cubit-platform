@@ -1,46 +1,137 @@
+/* ===== Cubit Design System v1.0 ===== */
+/* Совместимо с TailwindCSS + React + MUI */
+/* Основано на Material Design 3 Expressive */
+
 @import './react-colorful.css';
-:root {
-  /* ===== Цветовая схема (Expressive) ===== */
-  --md-sys-color-primary: #6750A4;
-  --md-sys-color-on-primary: #FFFFFF;
-  --md-sys-color-secondary: #625B71;
-  --md-sys-color-on-secondary: #FFFFFF;
-  --md-sys-color-background: #EFF1F5;
-  --md-sys-color-surface: #FFFFFF;
-  --md-sys-color-surface-container-high: #F0F5FA;
-  --md-sys-color-surface-container-low: #ECEAF6;
-  --md-sys-color-on-surface: #1D1B1E;
-  /* …другие токены по нужде… */
-
-  /* ===== Скругления ===== */
-  --md-sys-shape-corner-small: 4px;
-  --md-sys-shape-corner-medium: 8px;
-  --md-sys-shape-corner-large: 12px;
-  --md-sys-shape-corner-extra-large: 32px;
-
-  /* ===== Тени (примерные) ===== */
-  --md-sys-elevation-level1: 0px 1px 2px rgba(0,0,0,0.12), 0px 1px 3px rgba(0,0,0,0.20);
-  --md-sys-elevation-level2: 0px 3px 6px rgba(0,0,0,0.12), 0px 3px 6px rgba(0,0,0,0.24);
-}
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ======= Глобальные переменные ======= */
+:root {
+  /* === Цвета (Palette) === */
+  --cubit-color-bg: #F0F5FA;
+  --cubit-color-surface: #FFFFFF;
+  --cubit-color-primary: #3C96EF;
+  --cubit-color-primary-hover: #2F7DD6;
+  --cubit-color-gray: #626466;
+  --cubit-color-gray-light: #CED2D6;
+  --cubit-color-black: #000000;
+  --cubit-color-white: #FFFFFF;
+  --cubit-color-error: #E53935;
+  --cubit-color-success: #43A047;
+  --cubit-color-warning: #F9A825;
+
+  /* === Типографика === */
+  --cubit-font-family: 'Roboto', sans-serif;
+  --cubit-font-weight-regular: 400;
+  --cubit-font-weight-medium: 500;
+  --cubit-font-weight-bold: 700;
+
+  /* === Скругления === */
+  --cubit-radius-small: 8px;
+  --cubit-radius-medium: 12px;
+  --cubit-radius-large: 32px;
+  --cubit-radius-pill: 100px;
+
+  /* === Отступы (Spacing) === */
+  --cubit-space-page-x: 20px;
+  --cubit-space-page-y: 22px;
+  --cubit-space-gap-y: 10px;
+  --cubit-space-gap-x: 15px;
+
+  /* === Тени (Shadows) === */
+  --cubit-shadow-light: 0px 2px 6px rgba(60, 150, 239, 0.08),
+                        0px 4px 12px rgba(60, 150, 239, 0.06);
+  --cubit-shadow-medium: 0px 4px 8px rgba(60, 150, 239, 0.12),
+                         0px 6px 20px rgba(60, 150, 239, 0.08);
+  --cubit-shadow-strong: 0px 6px 10px rgba(60, 150, 239, 0.16),
+                         0px 12px 24px rgba(60, 150, 239, 0.10);
+
+  /* === Анимации === */
+  --cubit-transition-fast: all 0.2s ease;
+  --cubit-transition-normal: all 0.3s ease;
+}
+
+/* ======= Глобальные базовые стили ======= */
+
 html, body, #root {
   height: 100%;
   margin: 0;
-  overflow: hidden; 
+  font-family: var(--cubit-font-family);
+  font-weight: var(--cubit-font-weight-regular);
+  background-color: var(--cubit-color-bg);
+  color: var(--cubit-color-black);
 }
 
-body {
-  @apply bg-gray-50 text-gray-800;
+/* === Общие компоненты === */
+
+/* Карточки и поверхности */
+.surface {
+  background-color: var(--cubit-color-surface);
+  border-radius: var(--cubit-radius-medium);
+  box-shadow: var(--cubit-shadow-light);
+  padding: var(--cubit-space-gap-x);
 }
 
+/* Кнопки */
+.button {
+  font-family: var(--cubit-font-family);
+  font-weight: var(--cubit-font-weight-medium);
+  transition: var(--cubit-transition-fast);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* — Outlined кнопка (неактивная) — */
+.button-outlined {
+  border: 1px solid var(--cubit-color-gray-light);
+  color: var(--cubit-color-gray);
+  border-radius: var(--cubit-radius-pill);
+  background-color: transparent;
+  padding: 8px 18px;
+}
+.button-outlined:hover {
+  border-color: var(--cubit-color-primary);
+  color: var(--cubit-color-primary);
+  box-shadow: var(--cubit-shadow-light);
+}
+
+/* — Filled кнопка (активная) — */
+.button-filled {
+  border: none;
+  color: var(--cubit-color-white);
+  background-color: var(--cubit-color-primary);
+  border-radius: var(--cubit-radius-medium);
+  padding: 8px 20px;
+  box-shadow: var(--cubit-shadow-light);
+}
+.button-filled:hover {
+  background-color: var(--cubit-color-primary-hover);
+  box-shadow: var(--cubit-shadow-medium);
+}
+
+/* Фокус */
 :focus {
   outline: none;
 }
 :focus-visible {
-  outline: 2px solid #3b82f6; /* синий из Tailwind */
+  outline: 2px solid var(--cubit-color-primary);
   outline-offset: 2px;
+}
+
+/* === Вспомогательные классы === */
+.text-gray {
+  color: var(--cubit-color-gray);
+}
+.text-accent {
+  color: var(--cubit-color-primary);
+}
+.shadow-light {
+  box-shadow: var(--cubit-shadow-light);
+}
+.shadow-medium {
+  box-shadow: var(--cubit-shadow-medium);
 }

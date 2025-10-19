@@ -1,5 +1,5 @@
 // src/theme/ThemeContext.tsx
-import React, { createContext, useContext, useMemo, useState, ReactNode } from "react";
+import React, { createContext, useContext, useMemo, useState, ReactNode, useEffect } from "react";
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import { getTheme } from "../theme";
 
@@ -19,13 +19,23 @@ export const useThemeContext = () => {
 };
 
 export const ThemeProviderCustom: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Определяем начальное значение по системе
+  // Проверяем системные предпочтения
   const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const [mode, setMode] = useState<ThemeMode>(systemPrefersDark ? "dark" : "light");
+  const storedMode = (localStorage.getItem("themeMode") as ThemeMode) || (systemPrefersDark ? "dark" : "light");
+
+  const [mode, setMode] = useState<ThemeMode>(storedMode);
 
   const toggleTheme = () => {
-    setMode((prev) => (prev === "light" ? "dark" : "light"));
+    setMode((prev) => {
+      const newMode = prev === "light" ? "dark" : "light";
+      localStorage.setItem("themeMode", newMode);
+      return newMode;
+    });
   };
+
+  useEffect(() => {
+    document.body.dataset.theme = mode;
+  }, [mode]);
 
   const theme = useMemo(() => getTheme(mode), [mode]);
 

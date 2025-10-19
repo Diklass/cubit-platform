@@ -27,7 +27,9 @@ function App() {
         element={
           <PrivateRoute>
             <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
-              <Layout><Dashboard /></Layout>
+              <Layout showHeader={false}>   {/* <- скрываем шапку */}
+                <Dashboard />
+              </Layout>
             </RoleRoute>
           </PrivateRoute>
         }

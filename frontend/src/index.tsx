@@ -9,6 +9,7 @@ import { ThemeProviderCustom } from "./theme/ThemeContext";
 import "./styles/globals.css";
 import "react-colorful/dist/index.css";
 
+
 const queryClient = new QueryClient();
 
 function Root() {
