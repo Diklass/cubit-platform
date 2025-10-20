@@ -8,16 +8,19 @@ import App from "./App";
 import { ThemeProviderCustom } from "./theme/ThemeContext";
 import "./styles/globals.css";
 import "react-colorful/dist/index.css";
+import { CssBaseline, ThemeProvider } from '@mui/material';
+import { getTheme } from './theme';
 
 
 const queryClient = new QueryClient();
 
 function Root() {
   return (
-    <ThemeProviderCustom>
+    <ThemeProviderCustom >
       <BrowserRouter>
         <AuthProvider>
           <QueryClientProvider client={queryClient}>
+            <CssBaseline />
             <App />
           </QueryClientProvider>
         </AuthProvider>

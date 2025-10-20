@@ -44,15 +44,18 @@ export const cubitTheme = createTheme({
   },
 
   // ✅ Исправлено: создаём строго 25 теней
-  shadows: [
-    'none', // elevation 0
-    '0px 2px 6px rgba(60, 150, 239, 0.08), 0px 4px 12px rgba(60, 150, 239, 0.06)', // 1
-    '0px 4px 8px rgba(60, 150, 239, 0.12), 0px 6px 20px rgba(60, 150, 239, 0.08)', // 2
-    '0px 6px 10px rgba(60, 150, 239, 0.16), 0px 12px 24px rgba(60, 150, 239, 0.10)', // 3
-    ...Array(21).fill('none'), // 4–24 (добавляем, чтобы было ровно 25)
+   shadows: [
+    'none', // 0
+    '0 1px 2px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.12)',          // 1
+    '0 2px 4px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.14)',          // 2
+    '0 4px 8px rgba(0,0,0,.12), 0 6px 12px rgba(0,0,0,.16)',         // 3
+    '0 6px 12px rgba(0,0,0,.14), 0 10px 18px rgba(0,0,0,.18)',       // 4
+    '0 8px 16px rgba(0,0,0,.16), 0 12px 22px rgba(0,0,0,.20)',       // 5
+    // 6–24 — одинаковые, но можно варьировать при желании
+    ...Array(19).fill('0 12px 24px rgba(0,0,0,.18), 0 16px 32px rgba(0,0,0,.24)'),
   ] as any,
 
-  components: {
+ components: {
     MuiButton: {
       styleOverrides: {
         root: {
@@ -62,13 +65,17 @@ export const cubitTheme = createTheme({
           padding: '8px 20px',
           transition: 'all 0.2s ease',
         },
+        // ✅ чёрные тени вместо синевы
         contained: {
           backgroundColor: '#3C96EF',
           color: '#FFFFFF',
-          boxShadow: '0px 2px 6px rgba(60, 150, 239, 0.08)',
+          boxShadow: '0 2px 6px rgba(0,0,0,.08)',
           '&:hover': {
             backgroundColor: '#2F7DD6',
-            boxShadow: '0px 4px 8px rgba(60, 150, 239, 0.12)',
+            boxShadow: '0 4px 10px rgba(0,0,0,.12)',
+          },
+          '&:active': {
+            boxShadow: '0 2px 6px rgba(0,0,0,.10) inset',
           },
         },
         outlined: {
@@ -78,6 +85,7 @@ export const cubitTheme = createTheme({
           '&:hover': {
             border: '1px solid #3C96EF',
             color: '#3C96EF',
+            boxShadow: '0 1px 3px rgba(0,0,0,.10)', // лёгкий hover
           },
         },
       },
@@ -87,20 +95,12 @@ export const cubitTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 12,
-          boxShadow:
-            '0px 2px 6px rgba(60, 150, 239, 0.08), 0px 4px 12px rgba(60, 150, 239, 0.06)',
+          // ✅ используем системную тень
+          boxShadow: undefined,
         },
       },
-    },
-
-    MuiTextField: {
-      defaultProps: { variant: 'outlined' },
-      styleOverrides: {
-        root: {
-          '& .MuiOutlinedInput-root': {
-            borderRadius: 12,
-          },
-        },
+      defaultProps: {
+        elevation: 2, // => theme.shadows[2]
       },
     },
 
@@ -108,10 +108,10 @@ export const cubitTheme = createTheme({
       styleOverrides: {
         paper: {
           borderRadius: 12,
-          boxShadow:
-            '0px 4px 8px rgba(60, 150, 239, 0.12), 0px 6px 20px rgba(60, 150, 239, 0.08)',
+          boxShadow: undefined,
         },
       },
+      defaultProps: { elevation: 3 },
     },
 
     MuiTooltip: {
@@ -122,6 +122,8 @@ export const cubitTheme = createTheme({
           color: '#FFFFFF',
           borderRadius: 8,
           padding: '6px 12px',
+          // тень тоже нейтральная
+          boxShadow: '0 4px 10px rgba(0,0,0,.12)',
         },
       },
     },

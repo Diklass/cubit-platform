@@ -71,4 +71,8 @@ updateLesson(
 ) {
   return this.subjectsService.updateLesson(id, body);
 }
+@Patch(':id')
+updateSubject(@Param('id') id: string, @Body('title') title: string) {
+  return this.subjectsService.updateSubject(id, title);
+}
 }

@@ -9,6 +9,13 @@ export const deleteModule = (id: string) => api.delete(`/subjects/modules/${id}`
 // удалить предмет
 export const deleteSubject = (id: string) => api.delete(`/subjects/${id}`);
 
+export const updateSubject = (id: string | number, data: { title: string }) =>
+  api.patch(`/subjects/${id}`, data);
+
+export const createSubject = (data: { title: string }) =>
+  api.post("/subjects", data);
+
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
   withCredentials: true,

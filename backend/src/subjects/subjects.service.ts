@@ -70,6 +70,13 @@ async getLesson(id: string) {
   });
 }
 
+async updateSubject(id: string, title: string) {
+  return this.prisma.subject.update({
+    where: { id },
+    data: { title },
+  });
+}
+
 async deleteSubject(id: string) {
   return this.prisma.subject.delete({ where: { id } });
 }

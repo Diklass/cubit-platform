@@ -21,14 +21,14 @@ export const getTheme = (mode: "light" | "dark") => {
         contrastText: "#FFFFFF",
       },
       background: {
-        default: mode === "dark" ? "#0D1117" : "#FFFFFF",
-        paper: mode === "dark" ? "#000000" : "#FFFFFF",
+        default: mode === "dark" ? "#0B0F13" : "#FFFFFF", // немного теплее и глубже
+        paper: mode === "dark" ? "#10151B" : "#FFFFFF",
       },
       text: {
         primary: mode === "dark" ? "#E6EAF0" : "#111111",
         secondary: mode === "dark" ? "#9CA3AF" : "#555555",
       },
-      divider: mode === "dark" ? "#2E3440" : "#E5E7EB",
+      divider: mode === "dark" ? "rgba(255,255,255,0.12)" : "#E5E7EB",
     },
     components: {
       MuiButton: {

@@ -1,5 +1,5 @@
 // src/components/Header.tsx
-import React from 'react';
+import React, { useLayoutEffect, useRef } from "react";
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import ExpressiveSegmentedTabs from './ui/ExpressiveSegmentedTabs';
@@ -11,6 +11,7 @@ import { IconButton, Tooltip } from "@mui/material";
 import { Brightness4, Brightness7 } from "@mui/icons-material";
 import { useThemeContext } from "../theme/ThemeContext";
 
+
 export const Header: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation();
@@ -18,17 +19,29 @@ export const Header: React.FC = () => {
   const prefersReducedMotion = useReducedMotion();
   const theme = useTheme();
   const { toggleTheme } = useThemeContext();
+  const headerRef = useRef<HTMLDivElement | null>(null);
 
   const tabs = [
     { key: 'lessons', label: 'Уроки', to: '/lessons' },
     { key: 'rooms',   label: 'Комнаты', to: '/rooms' },
   ] as const;
 
-  
- const activeKey = tabs.find(t => location.pathname.startsWith(t.to))?.key;
+  useLayoutEffect(() => {
+  const setVar = () => {
+    if (!headerRef.current) return;
+    const h = headerRef.current.getBoundingClientRect().height; // фактическая высота шапки
+    document.documentElement.style.setProperty("--appbar-height", `${h}px`);
+  };
+  setVar();
+  window.addEventListener("resize", setVar);
+  return () => window.removeEventListener("resize", setVar);
+}, []);
+
+  const activeKey = tabs.find(t => location.pathname.startsWith(t.to))?.key;
 
   return (
     <motion.header
+    ref={headerRef}
       key={user?.id ?? 'guest'}
       className="
         sticky top-[22px] mx-[20px] z-20
@@ -36,11 +49,13 @@ export const Header: React.FC = () => {
         px-[15px] py-[10px]
         flex items-center justify-between
         !rounded-[12px] overflow-hidden shadow-light
+        
       "
       style={{
         willChange: 'transform',
         backgroundColor: theme.palette.background.paper,
         color: theme.palette.text.primary,
+        boxShadow: theme.shadows[2],
         
       }}
       initial={prefersReducedMotion ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: -28, scale: 0.98 }}

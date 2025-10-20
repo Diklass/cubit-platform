@@ -55,13 +55,18 @@
 
 /* ======= Глобальные базовые стили ======= */
 
-html, body, #root {
-  height: 100%;
+html,
+body {
   margin: 0;
-  font-family: var(--cubit-font-family);
-  font-weight: var(--cubit-font-weight-regular);
-  background-color: var(--cubit-color-bg);
-  color: var(--cubit-color-black);
+  padding: 0;
+  height: 100%;
+  background-color: var(--mui-palette-background-default, #0D1117);
+  overflow-x: hidden;
+}
+
+#root {
+  height: 100%;
+  background-color: inherit;
 }
 
 /* === Общие компоненты === */
