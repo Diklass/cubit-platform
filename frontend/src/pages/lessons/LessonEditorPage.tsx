@@ -1,7 +1,7 @@
-// src/pages/LessonEditorPage.tsx
+// src/pages/lessons/LessonEditorPage.tsx
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import api from "../api";
+import api from "../../api";
 import {
   Box,
   Button,
@@ -32,8 +32,8 @@ import { useLayoutEffect } from "react";
 
 import { useCallback } from "react";
 
-import { SidebarTree, ModuleNode } from "../components/SidebarTree";
-import { SubjectSidebar } from "../components/SubjectSidebar";
+import { SidebarTree, ModuleNode } from "../../components/SidebarTree";
+import { SubjectSidebar } from "../../components/lessons/SubjectSidebar";
 
 import {
   DndContext,
@@ -465,13 +465,14 @@ return (
     {/* === Левая панель (SidebarTree) === */}
 {lesson?.module?.subject?.id ? (
   <SubjectSidebar
-    subjectId={lesson.module!.subject!.id}
-    currentLessonId={id}
-    currentRole="TEACHER"
-    onSelectLesson={(lessonId) =>
-      navigate(`/lessons/${lesson.module!.subject!.id}?lessonId=${lessonId}`)
-    }
-  />
+  subjectId={lesson.module!.subject!.id}
+  modules={[]} // 🟢 добавь это
+  currentLessonId={id}
+  currentRole="TEACHER"
+  onSelectLesson={(lessonId) =>
+    navigate(`/lessons/${lesson.module!.subject!.id}?lessonId=${lessonId}`)
+  }
+/>
 ) : (
   <Box
     sx={{

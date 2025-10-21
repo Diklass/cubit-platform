@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import api, { deleteSubject, createSubject, updateSubject } from "../api";
+import api, { deleteSubject, createSubject, updateSubject } from "../../api";
 import {
   Box,
   Card,
@@ -16,8 +16,8 @@ import {
 } from "@mui/material";
 import { Add, DeleteOutline, EditOutlined } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import type { Subject } from "../types/lessons";
-import { useAuth } from "../auth/AuthContext";
+import type { Subject } from "../../types/lessons";
+import { useAuth } from "../../auth/AuthContext";
 
 const LessonsList: React.FC = () => {
   const [subjects, setSubjects] = useState<Subject[] | null>(null);

@@ -1,89 +1,122 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { PrivateRoute } from './auth/PrivateRoute';
-import Layout from './components/Layout';
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { PrivateRoute } from "./auth/PrivateRoute";
+import { RoleRoute } from "./auth/RoleRoute";
+import Layout from "./components/Layout";
 
-import LoginOrJoin from './pages/LoginOrJoin';
-import Dashboard from './pages/Dashboard';
-import LessonsList from './pages/LessonsList';
-import { RoomJoin } from './pages/RoomJoin';
-import { RoomPage } from './pages/RoomPage';
-import ProfilePage from './pages/ProfilePage';
-import { RoleRoute } from './auth/RoleRoute';
+import LoginOrJoin from "./pages/LoginOrJoin";
+import Dashboard from "./pages/Dashboard";
+import ProfilePage from "./pages/ProfilePage";
+import { RoomJoin } from "./pages/RoomJoin";
+import { RoomPage } from "./pages/RoomPage";
 
-import SubjectPage from './pages/SubjectPage';
-import LessonEditor from './pages/LessonEditor';
-import LessonEditorPage from './pages/LessonEditorPage';
-
+// === Новый порядок импортов для уроков ===
+import LessonsListPage from "./pages/lessons/LessonsListPage";
+import SubjectOverviewPage from "./pages/lessons/SubjectOverviewPage";
+import ModuleOverviewPage from "./pages/lessons/ModuleOverviewPage";
+import LessonContentPage from "./pages/lessons/LessonContentPage";
+import LessonEditorPage from "./pages/lessons/LessonEditorPage";
 
 function App() {
   return (
     <Routes>
+      {/* === Главная и логин === */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-       <Route path="/login" element={<LoginOrJoin />} />
+      <Route path="/login" element={<LoginOrJoin />} />
 
+      {/* === Главная панель === */}
       <Route
         path="/dashboard"
         element={
           <PrivateRoute>
-            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
-              <Layout showHeader={false}>   {/* <- скрываем шапку */}
+            <RoleRoute allowRoles={["ADMIN", "TEACHER", "STUDENT"]}>
+              <Layout showHeader={false}>
                 <Dashboard />
               </Layout>
             </RoleRoute>
           </PrivateRoute>
         }
       />
+
+      {/* === Предметы === */}
       <Route
         path="/lessons"
         element={
           <PrivateRoute>
-            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
-              <Layout><LessonsList /></Layout>
+            <RoleRoute allowRoles={["ADMIN", "TEACHER", "STUDENT"]}>
+              <Layout>
+                <LessonsListPage />
+              </Layout>
             </RoleRoute>
           </PrivateRoute>
         }
       />
 
-      <Route
-  path="/lessons/edit/:id"
-  element={
-    <PrivateRoute>
-      <RoleRoute allowRoles={['ADMIN','TEACHER']}>
-        <Layout><LessonEditorPage /></Layout>
-      </RoleRoute>
-    </PrivateRoute>
-  }
-/>
-
-      <Route
-        path="/lessons/edit/:lessonId"
-        element={
-          <PrivateRoute>
-            <RoleRoute allowRoles={['TEACHER']}>
-              <Layout><LessonEditor /></Layout>
-            </RoleRoute>
-          </PrivateRoute>
-        }
-      />
-
+      {/* === Предмет: список модулей === */}
       <Route
         path="/lessons/:subjectId"
         element={
           <PrivateRoute>
-            <RoleRoute allowRoles={['ADMIN', 'TEACHER', 'STUDENT']}>
-              <Layout><SubjectPage /></Layout>
+            <RoleRoute allowRoles={["ADMIN", "TEACHER", "STUDENT"]}>
+              <Layout>
+                <SubjectOverviewPage />
+              </Layout>
             </RoleRoute>
           </PrivateRoute>
         }
       />
-      
+
+      {/* === Модуль: список уроков === */}
+      <Route
+        path="/lessons/:subjectId/modules/:moduleId"
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={["ADMIN", "TEACHER", "STUDENT"]}>
+              <Layout>
+                <ModuleOverviewPage />
+              </Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
+      />
+
+      {/* === Просмотр урока === */}
+      <Route
+        path="/lessons/view/:lessonId"
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={["ADMIN", "TEACHER", "STUDENT"]}>
+              <Layout>
+                <LessonContentPage />
+              </Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
+      />
+
+      {/* === Редактор урока === */}
+      <Route
+        path="/lessons/edit/:id"
+        element={
+          <PrivateRoute>
+            <RoleRoute allowRoles={["ADMIN", "TEACHER"]}>
+              <Layout>
+                <LessonEditorPage />
+              </Layout>
+            </RoleRoute>
+          </PrivateRoute>
+        }
+      />
+
+      {/* === Комнаты === */}
       <Route
         path="/rooms"
         element={
           <PrivateRoute>
-            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
-              <Layout><RoomJoin /></Layout>
+            <RoleRoute allowRoles={["ADMIN", "TEACHER", "STUDENT"]}>
+              <Layout>
+                <RoomJoin />
+              </Layout>
             </RoleRoute>
           </PrivateRoute>
         }
@@ -92,25 +125,38 @@ function App() {
         path="/rooms/:code"
         element={
           <PrivateRoute>
-            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT','GUEST']}>
-              <Layout><RoomPage /></Layout>
+            <RoleRoute allowRoles={["ADMIN", "TEACHER", "STUDENT", "GUEST"]}>
+              <Layout>
+                <RoomPage />
+              </Layout>
             </RoleRoute>
           </PrivateRoute>
         }
       />
 
+      {/* === Профиль === */}
       <Route
         path="/profile"
         element={
           <PrivateRoute>
-            <RoleRoute allowRoles={['ADMIN','TEACHER','STUDENT']}>
-              <Layout><ProfilePage /></Layout>
+            <RoleRoute allowRoles={["ADMIN", "TEACHER", "STUDENT"]}>
+              <Layout>
+                <ProfilePage />
+              </Layout>
             </RoleRoute>
           </PrivateRoute>
         }
       />
 
-      <Route path="*" element={<Layout><div className="p-4">Страница не найдена</div></Layout>} />
+      {/* === 404 === */}
+      <Route
+        path="*"
+        element={
+          <Layout>
+            <div className="p-4">Страница не найдена</div>
+          </Layout>
+        }
+      />
     </Routes>
   );
 }
