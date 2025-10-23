@@ -66,7 +66,7 @@ export const SubjectOverview: React.FC<SubjectOverviewProps> = ({
     pt: "calc(20px + var(--appbar-offset, 0px))",
     pb: "40px",
     fontFamily: "Roboto, sans-serif",
-    backgroundColor: theme.palette.background.default,
+    backgroundColor: "transparent",
     color: theme.palette.text.primary,
     transition: "background-color 0.3s, color 0.3s",
   }}

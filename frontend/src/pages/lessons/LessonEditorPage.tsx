@@ -55,6 +55,8 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
+import { MainContentLayout } from "../../components/layout/MainContentLayout";
+
 
 // === Типы ===
 type Block = { type: "text" | "image" | "video" | "file"; content: string };
@@ -318,6 +320,32 @@ useEffect(() => {
   }
 }, [loading, lesson]);
 
+const [sidebarCollapsed, setSidebarCollapsed] = useState(
+  localStorage.getItem("sidebarCollapsed") === "true"
+);
+useEffect(() => {
+  const handler = (e: Event) => {
+    const collapsed = (e as CustomEvent<{ collapsed: boolean }>).detail.collapsed;
+    setSidebarCollapsed(collapsed);
+  };
+  window.addEventListener("sidebar-collapsed-changed", handler);
+  return () => window.removeEventListener("sidebar-collapsed-changed", handler);
+}, []);
+
+// слушаем изменения состояния панели из localStorage
+useEffect(() => {
+  const handler = (e: Event) => {
+    const custom = e as CustomEvent<{ collapsed: boolean }>;
+    const collapsed = custom.detail?.collapsed;
+    document.body.style.setProperty(
+      "--sidebar-width",
+      collapsed ? "84px" : "340px"
+    );
+  };
+  window.addEventListener("sidebar-collapsed-changed", handler);
+  return () => window.removeEventListener("sidebar-collapsed-changed", handler);
+}, []);
+
 
 
 
@@ -461,8 +489,18 @@ if (loading) return <CircularProgress />;
   if (!lesson)
     return <Typography color="error">Ошибка: урок не найден</Typography>;
 
+
+
 return (
-    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+   // === Основной контейнер страницы ===
+<Box
+  sx={(theme: Theme) => ({
+    display: "flex",
+    backgroundColor: theme.palette.background.default,
+    minHeight: "100vh",
+    transition: "all 0.3s ease",
+  })}
+>
     {/* === Левая панель (SidebarTree) === */}
 {lesson?.module?.subject?.id ? (
   <SubjectSidebar
@@ -482,6 +520,7 @@ return (
       alignItems: "center",
       justifyContent: "center",
       borderRight: (theme:Theme) => `1px solid ${theme.palette.divider}`,
+      marginLeft: "var(--sidebar-width, 340px)",
     }}
   >
     <Typography color="text.secondary" variant="body2">
@@ -492,65 +531,75 @@ return (
 
 
     {/* === Правая область: Редактор урока === */}
-    <Box
-      sx={{
-        flexGrow: 1,
-        p: 3,
-        overflowY: "auto",
-        backgroundColor: (theme:Theme) => theme.palette.background.default,
-        color: (theme:Theme) => theme.palette.text.primary,
-        transition: "background-color 0.3s, color 0.3s",
-      }}
+<MainContentLayout>
+  <Box className="editor-card">
+    {/* === Заголовок и статус === */}
+    <Stack
+      direction="row"
+      alignItems="center"
+      justifyContent="space-between"
+      sx={(theme: Theme) => ({
+        mb: 4,
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        pb: 2,
+      })}
     >
-      {/* === Заголовок и статус сохранения === */}
-      <Stack
-        direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        sx={{ mb: 3 }}
+      <Typography
+        variant="h4"
+        sx={(theme: Theme) => ({
+          fontWeight: 700,
+          color: theme.palette.text.primary,
+        })}
       >
-        <TextField
-          label="Название урока"
-          value={title}
-          onChange={(e) =>
-            applyChange((d) => {
-              d.title = e.target.value;
-            })
-          }
-          fullWidth
-        />
+        Редактирование урока
+      </Typography>
+      <Box
+        sx={{
+          px: 2,
+          py: 0.5,
+          borderRadius: 2,
+          fontSize: 14,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          backgroundColor:
+            saveStatus === "saved"
+              ? "rgba(76, 175, 80, 0.15)"
+              : saveStatus === "unsaved"
+              ? "rgba(255, 193, 7, 0.15)"
+              : "rgba(244, 67, 54, 0.15)",
+          color:
+            saveStatus === "saved"
+              ? "#4CAF50"
+              : saveStatus === "unsaved"
+              ? "#FFC107"
+              : "#F44336",
+          transition: "all 0.3s ease",
+        }}
+      >
+        {saveStatus === "saved" && "✅ Сохранено"}
+        {saveStatus === "unsaved" && "💾 Изменения не сохранены"}
+        {saveStatus === "error" && "❌ Ошибка сохранения"}
+      </Box>
+    </Stack>
 
-         {/* === Индикатор сохранения === */}
-        <Box
-          sx={{
-            ml: 2,
-            px: 2,
-            py: 0.5,
-            borderRadius: 2,
-            fontSize: 14,
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            backgroundColor:
-              saveStatus === "saved"
-                ? "rgba(76, 175, 80, 0.15)" // зелёный фон
-                : saveStatus === "unsaved"
-                ? "rgba(255, 193, 7, 0.15)" // жёлтый фон
-                : "rgba(244, 67, 54, 0.15)", // красный фон
-            color:
-              saveStatus === "saved"
-                ? "#4CAF50"
-                : saveStatus === "unsaved"
-                ? "#FFC107"
-                : "#F44336",
-            transition: "all 0.3s ease",
-          }}
-        >
-          {saveStatus === "saved" && "✅ Сохранено"}
-          {saveStatus === "unsaved" && "💾 Изменения не сохранены"}
-          {saveStatus === "error" && "❌ Ошибка сохранения"}
-        </Box>
-      </Stack>
+    {/* === Поле ввода названия === */}
+    <TextField
+      label="Название урока"
+      value={title}
+      onChange={(e) =>
+        applyChange((d) => {
+          d.title = e.target.value;
+        })
+      }
+      fullWidth
+      sx={{
+        mb: 4,
+        "& .MuiOutlinedInput-root": {
+          borderRadius: "12px",
+        },
+      }}
+    />
 
       {/* === Контент: Предпросмотр / Редактор === */}
       {preview ? (
@@ -653,16 +702,20 @@ return (
           <Box sx={{ mb: 4 }}>
             {/* === Шапка секции === */}
             <Paper
-              sx={{
-                p: 2,
-                mb: 2,
-                borderLeft: `6px solid ${section.color || "#1976d2"}`,
-                backgroundColor: "background.paper",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
+  sx={{
+    p: 2.5,
+    mb: 3,
+    borderLeft: `6px solid ${section.color || "#3b82f6"}`,
+    backgroundColor: "#fff",
+    borderRadius: "16px",
+    boxShadow: "0 3px 12px rgba(0,0,0,0.05)",
+    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+    "&:hover": {
+      transform: "translateY(-2px)",
+      boxShadow: "0 6px 16px rgba(0,0,0,0.08)",
+    },
+  }}
+>
               <Stack direction="row" spacing={2} alignItems="center" sx={{ flex: 1 }}>
                 <IconButton {...listeners}>
                   <DragIndicatorIcon />
@@ -742,11 +795,16 @@ return (
                           <Box
                             sx={(theme:Theme) => ({
                               mb: 2,
-                              p: 2,
-                              border: "1px solid",
-                              borderColor: theme.palette.divider,
-                              borderRadius: 2,
-                              backgroundColor: theme.palette.background.paper,
+    p: 2.2,
+    border: "1px solid",
+    borderColor: theme.palette.divider,
+    borderRadius: "14px",
+    backgroundColor: "#fafafa",
+    transition: "box-shadow .25s ease, transform .25s ease",
+    "&:hover": {
+      boxShadow: "0 3px 10px rgba(0,0,0,0.05)",
+      transform: "translateY(-1px)",
+    },
                             })}
                             onDragOver={(e: React.DragEvent<HTMLDivElement>) => e.preventDefault()}
 onDrop={async (e: React.DragEvent<HTMLDivElement>) => {
@@ -986,6 +1044,8 @@ onDrop={async (e: React.DragEvent<HTMLDivElement>) => {
   </SortableContext>
 </DndContext>
       )}
+  </Box>
+</MainContentLayout>
 
       {/* === Плавающая панель действий === */}
       <Box
@@ -1000,17 +1060,19 @@ onDrop={async (e: React.DragEvent<HTMLDivElement>) => {
         }}
       >
         <Paper
-          elevation={3}
-          sx={{
-            borderRadius: 99,
-            px: 2,
-            py: 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            backdropFilter: "blur(8px)",
-          }}
-        >
+  elevation={5}
+  sx={{
+    borderRadius: "999px",
+    px: 2.5,
+    py: 1.2,
+    display: "flex",
+    alignItems: "center",
+    gap: 1.5,
+    backdropFilter: "blur(10px)",
+    backgroundColor: "rgba(255,255,255,0.7)",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+  }}
+>
           <Button onClick={() => setPreview(!preview)}>
             {preview ? "Редактировать" : "Предпросмотр"}
           </Button>
@@ -1036,20 +1098,22 @@ onDrop={async (e: React.DragEvent<HTMLDivElement>) => {
         </Paper>
 
         {/* Кнопка + (добавляет блок в первую секцию, как и было) */}
-        <IconButton
-          sx={{
-            borderRadius: 3,
-            width: 48,
-            height: 48,
-            backgroundColor: "primary.main",
-            color: "primary.contrastText",
-            "&:hover": { backgroundColor: "primary.dark" },
-          }}
-          onClick={(e: React.MouseEvent<HTMLButtonElement>) => setMenuAnchor(e.currentTarget)}
-
-        >
-          <AddIcon />
-        </IconButton>
+       <IconButton
+  sx={{
+    width: 52,
+    height: 52,
+    borderRadius: "14px",
+    backgroundColor: "#3b82f6",
+    color: "#fff",
+    boxShadow: "0 4px 12px rgba(59,130,246,0.4)",
+    "&:hover": {
+      backgroundColor: "#2563eb",
+      boxShadow: "0 6px 18px rgba(59,130,246,0.5)",
+    },
+  }}
+>
+  <AddIcon />
+</IconButton>
 
         <Menu
           anchorEl={menuAnchor}
@@ -1091,6 +1155,5 @@ onDrop={async (e: React.DragEvent<HTMLDivElement>) => {
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       />
     </Box>
-  </Box>
   );
 }
