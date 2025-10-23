@@ -219,12 +219,7 @@ const LoginOrJoin: React.FC = () => {
                   exit={{ opacity: 0 }}
                   transition={{ type: "tween", duration: 0.2 }}
                 >
-                  <Box
-                    component="form"
-                    onSubmit={onLoginSubmit(onLogin)}
-                    noValidate
-                    sx={{ mt: 2 }}
-                  >
+                  <form onSubmit={onLoginSubmit(onLogin)} noValidate style={{ marginTop: 16 }}>
                     <TextField
                       label="Email"
                       fullWidth
@@ -270,7 +265,7 @@ const LoginOrJoin: React.FC = () => {
                     >
                       Войти
                     </AnimatedSubmitButton>
-                  </Box>
+                  </form>
                 </motion.div>
               ) : (
                 <motion.div
@@ -281,12 +276,7 @@ const LoginOrJoin: React.FC = () => {
                   exit={{ opacity: 0 }}
                   transition={{ type: "tween", duration: 0.2 }}
                 >
-                  <Box
-                    component="form"
-                    onSubmit={onRoomSubmit(onJoin)}
-                    noValidate
-                    sx={{ mt: 2 }}
-                  >
+                  <form onSubmit={onRoomSubmit(onJoin)} noValidate style={{ marginTop: 16 }}>
                     <TextField
                       label="Код комнаты"
                       fullWidth
@@ -315,7 +305,7 @@ const LoginOrJoin: React.FC = () => {
                     >
                       Войти
                     </AnimatedSubmitButton>
-                  </Box>
+                  </form>
                 </motion.div>
               )}
             </AnimatePresence>

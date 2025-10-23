@@ -32,8 +32,9 @@ import { useLayoutEffect } from "react";
 
 import { useCallback } from "react";
 
-import { SidebarTree, ModuleNode } from "../../components/SidebarTree";
 import { SubjectSidebar } from "../../components/lessons/SubjectSidebar";
+
+import type { Theme } from "@mui/material/styles";
 
 import {
   DndContext,
@@ -480,7 +481,7 @@ return (
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      borderRight: (theme) => `1px solid ${theme.palette.divider}`,
+      borderRight: (theme:Theme) => `1px solid ${theme.palette.divider}`,
     }}
   >
     <Typography color="text.secondary" variant="body2">
@@ -496,8 +497,8 @@ return (
         flexGrow: 1,
         p: 3,
         overflowY: "auto",
-        backgroundColor: (theme) => theme.palette.background.default,
-        color: (theme) => theme.palette.text.primary,
+        backgroundColor: (theme:Theme) => theme.palette.background.default,
+        color: (theme:Theme) => theme.palette.text.primary,
         transition: "background-color 0.3s, color 0.3s",
       }}
     >
@@ -739,7 +740,7 @@ return (
                           transition={{ duration: 0.2 }}
                         >
                           <Box
-                            sx={(theme) => ({
+                            sx={(theme:Theme) => ({
                               mb: 2,
                               p: 2,
                               border: "1px solid",
@@ -747,15 +748,17 @@ return (
                               borderRadius: 2,
                               backgroundColor: theme.palette.background.paper,
                             })}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={async (e) => {
-                              e.preventDefault();
-                              const file = e.dataTransfer.files?.[0];
-                              if (file && (b.type === "image" || b.type === "file")) {
-                                const url = await uploadLessonFile(file);
-                               applyChange((d) => { d.sections[secIdx].children[idx].content = url; });
-                              }
-                            }}
+                            onDragOver={(e: React.DragEvent<HTMLDivElement>) => e.preventDefault()}
+onDrop={async (e: React.DragEvent<HTMLDivElement>) => {
+  e.preventDefault();
+  const file = e.dataTransfer.files?.[0];
+  if (file && (b.type === "image" || b.type === "file")) {
+    const url = await uploadLessonFile(file);
+    applyChange((d) => {
+      d.sections[secIdx].children[idx].content = url;
+    });
+  }
+}}
                           >
                             <Stack direction="row" alignItems="flex-start" spacing={2}>
                               <Box sx={{ flex: 1 }}>
@@ -1042,7 +1045,8 @@ return (
             color: "primary.contrastText",
             "&:hover": { backgroundColor: "primary.dark" },
           }}
-          onClick={(e) => setMenuAnchor(e.currentTarget)}
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => setMenuAnchor(e.currentTarget)}
+
         >
           <AddIcon />
         </IconButton>
