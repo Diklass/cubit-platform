@@ -43,6 +43,7 @@ export const Header: React.FC = () => {
     <motion.header
     ref={headerRef}
       key={user?.id ?? 'guest'}
+
       className="
         sticky top-[22px] mx-[20px] z-20
         h-[60px]
@@ -161,3 +162,5 @@ export const Header: React.FC = () => {
     </motion.header>
   );
 };
+
+

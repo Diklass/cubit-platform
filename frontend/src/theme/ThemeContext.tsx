@@ -1,7 +1,14 @@
 // src/theme/ThemeContext.tsx
-import React, { createContext, useContext, useMemo, useState, ReactNode, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  ReactNode,
+  useEffect,
+} from "react";
 import { ThemeProvider, CssBaseline } from "@mui/material";
-import { getTheme } from "../theme";
+import { getTheme } from "../theme"; // важно, чтобы getTheme(mode) реально использовал mode
 
 type ThemeMode = "light" | "dark";
 
@@ -14,30 +21,45 @@ const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
 
 export const useThemeContext = () => {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useThemeContext must be used within ThemeProviderCustom");
+  if (!ctx) {
+    throw new Error("useThemeContext must be used within ThemeProviderCustom");
+  }
   return ctx;
 };
 
-export const ThemeProviderCustom: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Проверяем системные предпочтения
-  const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const storedMode = (localStorage.getItem("themeMode") as ThemeMode) || (systemPrefersDark ? "dark" : "light");
+export const ThemeProviderCustom: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
+  // === 1. Инициализация ===
+  const [mode, setMode] = useState<ThemeMode>(() => {
+    const saved = localStorage.getItem("themeMode") as ThemeMode | null;
+    if (saved === "light" || saved === "dark") return saved;
+    // автоопределение при первом запуске
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
 
-  const [mode, setMode] = useState<ThemeMode>(storedMode);
-
+  // === 2. Реакция на toggle ===
   const toggleTheme = () => {
     setMode((prev) => {
-      const newMode = prev === "light" ? "dark" : "light";
-      localStorage.setItem("themeMode", newMode);
-      return newMode;
+      const next = prev === "light" ? "dark" : "light";
+      localStorage.setItem("themeMode", next);
+      return next;
     });
   };
 
+  // === 3. Обновляем тему ===
+  const theme = useMemo(() => getTheme(mode), [mode]);
+
+  // === 4. (необязательно, но красиво) обновляем data-атрибут для CSS/анимаций ===
   useEffect(() => {
     document.body.dataset.theme = mode;
   }, [mode]);
 
-  const theme = useMemo(() => getTheme(mode), [mode]);
+  useEffect(() => {
+  console.log("Theme mode:", mode);
+}, [mode]);
 
   return (
     <ThemeContext.Provider value={{ mode, toggleTheme }}>

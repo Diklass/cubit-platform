@@ -1,59 +1,73 @@
 // src/pages/SubjectPage.tsx
 import React, { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { Box } from "@mui/material";
 import { SubjectSidebar } from "../../components/lessons/SubjectSidebar";
 import { useAuth } from "../../auth/AuthContext";
 import { ModuleOverview } from "../../components/lessons/ModuleOverview";
 import api from "../../api";
-import { useNavigate } from "react-router-dom";
+import { MainContentLayout } from "../../components/layout/MainContentLayout"; 
+import type { Theme } from "@mui/material/styles";
 
 export default function SubjectPage() {
-  const { subjectId } = useParams();
-  const [sp, setSp] = useSearchParams();
+  const { subjectId } = useParams<{ subjectId: string }>();
+  const [sp] = useSearchParams();
   const selectedLessonId = sp.get("lessonId") ?? undefined;
+  const navigate = useNavigate();
 
   const { user } = useAuth();
   const role = user?.role ?? "GUEST";
 
-  const [modules, setModules] = useState([]);
-  const navigate = useNavigate();
+  const [modules, setModules] = useState<any[]>([]);
 
-const loadModules = async () => {
-  if (!subjectId) return;
-  const { data } = await api.get(`/subjects/${subjectId}`);
-  setModules(data.tree || []); // 🔹 должно быть [], а не data.tree[0]
-};
+  const loadModules = async () => {
+    if (!subjectId) return;
+    try {
+      const { data } = await api.get(`/subjects/${subjectId}`);
+      setModules(data.tree || []);
+    } catch (err) {
+      console.error("Ошибка загрузки модулей:", err);
+    }
+  };
 
   useEffect(() => {
     loadModules();
   }, [subjectId]);
 
-  // Когда удаляется модуль или урок
   const handleDataChange = () => {
     loadModules();
   };
 
-const handleSelectLesson = (lessonId: string) => {
-  navigate(`/lessons/view/${lessonId}`);
-};
+  const handleSelectLesson = (lessonId: string) => {
+    navigate(`/lessons/view/${lessonId}`);
+  };
 
   return (
-    <div className="flex h-full">
+    <Box
+      sx={{
+        display: "flex",
+        minHeight: "100vh",
+        backgroundColor: (theme: Theme) => theme.palette.background.default,
+      }}
+    >
+      {/* 🔹 Боковая панель */}
       <SubjectSidebar
         subjectId={subjectId}
         modules={modules}
         currentLessonId={selectedLessonId}
         currentRole={role}
         onSelectLesson={handleSelectLesson}
-        onDataChange={handleDataChange} // 🟦 добавили общий хук
+        onDataChange={handleDataChange}
       />
-      <div className="flex-1 overflow-auto">
+
+      {/* 🔹 Главная область */}
+      <MainContentLayout>
         <ModuleOverview
           modules={modules}
-          onDataChange={handleDataChange} // 🟦 передаём тот же хук
+          onDataChange={handleDataChange}
           role={role}
         />
-      </div>
-    </div>
+      </MainContentLayout>
+    </Box>
   );
 }

@@ -28,14 +28,17 @@ export const ModuleOverview: React.FC<ModuleOverviewProps> = ({
   const theme = useTheme();
 
   return (
-    <Box
-      sx={{
-        px: "20px",
-        pt: "calc(20px + var(--appbar-offset, 0px))",
-        pb: "40px",
-        fontFamily: "Roboto, sans-serif",
-      }}
-    >
+   <Box
+  sx={{
+    px: "20px",
+    pt: "calc(20px + var(--appbar-offset, 0px))",
+    pb: "40px",
+    fontFamily: "Roboto, sans-serif",
+    backgroundColor: theme.palette.background.default,
+    color: theme.palette.text.primary,
+    transition: "background-color 0.3s, color 0.3s",
+  }}
+>
       {modules.map((m) => (
         <Box key={m.id} sx={{ mb: 5 }}>
           <Typography
@@ -53,17 +56,17 @@ export const ModuleOverview: React.FC<ModuleOverviewProps> = ({
             <Typography color="text.secondary">Нет уроков в этом модуле</Typography>
           ) : (
             <Grid container spacing={1.875}>
-              {m.lessons.map((lesson) => (
-                <Grid item xs={12} sm={6} md={4} lg={3} key={lesson.id}>
-                  <LessonCard
-                    id={lesson.id}
-                    title={lesson.title}
-                    role={role}
-                    onDelete={onDataChange}
-                  />
-                </Grid>
-              ))}
-            </Grid>
+  {m.lessons.map((lesson) => (
+    <Grid item xs={12} sm={6} md={4} lg={3} key={lesson.id}>
+      <LessonCard
+        id={lesson.id}
+        title={lesson.title}
+        role={role}
+        onDelete={onDataChange}
+      />
+    </Grid>
+  ))}
+</Grid>
           )}
         </Box>
       ))}

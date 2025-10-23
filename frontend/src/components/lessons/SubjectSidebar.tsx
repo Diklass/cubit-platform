@@ -26,6 +26,10 @@ import MenuBookIcon from "@mui/icons-material/MenuBook";
 import LibraryBooksIcon from "@mui/icons-material/LibraryBooks";
 import { useTheme } from "@mui/material";
 import { CustomScrollArea } from "../ui/CustomScrollArea";
+import { motion } from "framer-motion";
+import { AddDialog } from "../ui/AddDialog";
+import type { Theme } from "@mui/material/styles";
+
 
 
 interface Lesson {
@@ -55,507 +59,603 @@ export const SubjectSidebar: React.FC<{
   onDataChange,
   currentRole = "GUEST",
 }) => {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [search, setSearch] = useState("");
-  const [collapsed, setCollapsed] = useState(() => {
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem("sidebarCollapsed");
-    return saved === "true"; // true если была свернута
-  }
-  return false;
-});
+    const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    const [search, setSearch] = useState("");
+    const [collapsed, setCollapsed] = useState(() => {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("sidebarCollapsed");
+        return saved === "true"; // true если была свернута
+      }
+      return false;
+    });
 
-  const isReadonly = currentRole === "STUDENT" || currentRole === "GUEST";
-  const navigate = useNavigate();
+    const isReadonly = currentRole === "STUDENT" || currentRole === "GUEST";
+    const navigate = useNavigate();
 
-  const searchRef = React.useRef<HTMLInputElement>(null);
+    const searchRef = React.useRef<HTMLInputElement>(null);
 
-  const [isSearching, setIsSearching] = useState(false);
-
-
-
-  const [isSearchAnimating, setIsSearchAnimating] = useState(false);
-  const searchAnimTimer = React.useRef<number | null>(null);
-
-  const currentPath = window.location.pathname;
-
-  const sidebarWidth = collapsed ? 64 : 320;
-
-  const theme = useTheme();
-
-  
-
-  const handleAddLesson = async (moduleId: string) => {
-    const title = prompt("Введите название урока:");
-    if (!title) return;
-    await api.post(`/subjects/modules/${moduleId}/lessons`, { title });
-    onDataChange?.();
-  };
-
-  const handleAddModule = async () => {
-    const title = prompt("Введите название модуля:");
-    if (!title) return;
-    await api.post(`/subjects/${subjectId}/modules`, { title });
-    onDataChange?.();
-  };
-
-  const handleDeleteLesson = async (lessonId: string) => {
-    if (!confirm("Удалить этот урок?")) return;
-    await api.delete(`/subjects/lessons/${lessonId}`);
-    onDataChange?.();
-  };
-
-  const startSearchAnimation = (durationMs = 1600) => {
-  setIsSearchAnimating(true);
-  if (searchAnimTimer.current) window.clearTimeout(searchAnimTimer.current);
-  searchAnimTimer.current = window.setTimeout(() => {
-    setIsSearchAnimating(false);
-  }, durationMs);
-};
-
-useEffect(() => {
-  // при сворачивании панели — аккуратно гасим эффект
-  if (collapsed) {
-    setIsSearching(false);
-    setIsSearchAnimating(false);
-    if (searchAnimTimer.current) {
-      window.clearTimeout(searchAnimTimer.current);
-      searchAnimTimer.current = null;
-    }
-  }
-  return () => {
-    if (searchAnimTimer.current) window.clearTimeout(searchAnimTimer.current);
-  };
-}, [collapsed]);
-
-  // === Сохраняем и восстанавливаем состояние свернутости ===
-
-useEffect(() => {
-  localStorage.setItem("sidebarCollapsed", String(collapsed));
-}, [collapsed]);
-
-useEffect(() => {
-  localStorage.setItem("sidebarCollapsed", String(collapsed));
-  window.dispatchEvent(new CustomEvent("sidebar-collapsed-changed", { detail: { collapsed } }));
-}, [collapsed]);
+    const [isSearching, setIsSearching] = useState(false);
 
 
-const PANEL_LEFT = 20;
-const HEADER_TOP = 22;  // то, что указано в Header: top-[22px]
-const HEADER_HEIGHT = 58; // то, что видно из Header: h-[60px]
-const GAP_BELOW_HEADER = 20; // желаемый зазор
-const PANEL_TOP = HEADER_TOP + HEADER_HEIGHT + GAP_BELOW_HEADER; // = 102px
-const PANEL_BOTTOM = 20;
-const PANEL_WIDTH = collapsed ? 64 : 320;
- 
 
-  return (
-<Box
-  sx={(theme) => ({
-    position: "fixed",
-    top: `${PANEL_TOP}px`,         // ✅ теперь точно под шапкой
-    left: `${PANEL_LEFT}px`,
-    width: PANEL_WIDTH,
-    height: `calc(100vh - ${PANEL_TOP + PANEL_BOTTOM}px)`,
-    borderRadius: "20px",
-    backgroundColor: theme.palette.background.paper,
-    boxShadow: theme.shadows[3],
-    zIndex: 10,                   // чтобы быть под шапкой (у шапки z-20)
-    display: "flex",
-    flexDirection: "column",
-    transition: "width 0.4s cubic-bezier(0.25, 1.25, 0.5, 1)",
-  })}
->
-{/* ВНУТРЕННЯЯ СКРОЛЛ-ОБЛАСТЬ с padding: 20px */}
-<Box
-  sx={{
-    flex: "1 1 auto",
-    overflowY: "auto",
-    overflowX: "hidden",
-    padding: "20px 24px 20px 20px",
-    pr: "20px",
-    scrollbarWidth: "auto", // Firefox
-    "&::-webkit-scrollbar": {
-      width: "8px",
-    },
-    "&::-webkit-scrollbar-thumb": {
-      backgroundColor: theme.palette.mode === "dark" ? "#555" : "#bbb",
-      borderRadius: "4px",
-    },
-    "&::-webkit-scrollbar-thumb:hover": {
-      backgroundColor: theme.palette.mode === "dark" ? "#666" : "#999",
-    },
-  }}
->
-  <Box className="sidebar-scroll">
-    {/* === Верхняя панель: поиск + кнопка сворачивания === */}
-    {!collapsed ? (
+    const [isSearchAnimating, setIsSearchAnimating] = useState(false);
+    const searchAnimTimer = React.useRef<number | null>(null);
+
+    const currentPath = window.location.pathname;
+
+    const sidebarWidth = collapsed ? 64 : 320;
+
+    const theme = useTheme();
+
+    const [addLessonOpen, setAddLessonOpen] = useState(false);
+    const [addModuleOpen, setAddModuleOpen] = useState(false);
+    const [pendingModuleId, setPendingModuleId] = useState<string | null>(null);
+
+    const springTap = {
+      whileTap: { scale: 0.96 },
+      transition: {
+        type: "spring",
+        stiffness: 500,
+        damping: 25,
+        mass: 0.7,
+      },
+      style: { display: "inline-flex", width: "100%" }, // 🔹 сохраняем ширину и flex-поведение
+    };
+
+    const handleAddLesson = (moduleId: string) => {
+      setPendingModuleId(moduleId);
+      setAddLessonOpen(true);
+    };
+
+
+
+    const handleAddModule = () => setAddModuleOpen(true);
+
+    const handleDeleteLesson = async (lessonId: string) => {
+      if (!confirm("Удалить этот урок?")) return;
+      await api.delete(`/subjects/lessons/${lessonId}`);
+      onDataChange?.();
+    };
+
+    const startSearchAnimation = (durationMs = 1600) => {
+      setIsSearchAnimating(true);
+      if (searchAnimTimer.current) window.clearTimeout(searchAnimTimer.current);
+      searchAnimTimer.current = window.setTimeout(() => {
+        setIsSearchAnimating(false);
+      }, durationMs);
+    };
+
+    useEffect(() => {
+      // при сворачивании панели — аккуратно гасим эффект
+      if (collapsed) {
+        setIsSearching(false);
+        setIsSearchAnimating(false);
+        if (searchAnimTimer.current) {
+          window.clearTimeout(searchAnimTimer.current);
+          searchAnimTimer.current = null;
+        }
+      }
+      return () => {
+        if (searchAnimTimer.current) window.clearTimeout(searchAnimTimer.current);
+      };
+    }, [collapsed]);
+
+    // === Сохраняем и восстанавливаем состояние свернутости ===
+
+    useEffect(() => {
+      localStorage.setItem("sidebarCollapsed", String(collapsed));
+    }, [collapsed]);
+
+    useEffect(() => {
+      localStorage.setItem("sidebarCollapsed", String(collapsed));
+      window.dispatchEvent(new CustomEvent("sidebar-collapsed-changed", { detail: { collapsed } }));
+    }, [collapsed]);
+
+
+    const PANEL_LEFT = 20;
+    const HEADER_TOP = 22;  // то, что указано в Header: top-[22px]
+    const HEADER_HEIGHT = 58; // то, что видно из Header: h-[60px]
+    const GAP_BELOW_HEADER = 20; // желаемый зазор
+    const PANEL_TOP = HEADER_TOP + HEADER_HEIGHT + GAP_BELOW_HEADER; // = 102px
+    const PANEL_BOTTOM = 20;
+    const PANEL_WIDTH = collapsed ? 64 : 320;
+
+
+    return (
       <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          mb: 1,
-          gap: 1,
-          opacity: collapsed ? 0 : 1,
-          transform: collapsed ? "translateX(-10px)" : "translateX(0)",
-          transition: "all 0.4s cubic-bezier(0.25, 1.25, 0.5, 1)",
-        }}
-      >
-        <TextField
-          inputRef={searchRef}
-          onFocus={() => {
-            setIsSearching(true);
-            startSearchAnimation(1600);
-          }}
-          onBlur={() => {
-            setIsSearching(false);
-            setIsSearchAnimating(false);
-            if (searchAnimTimer.current) {
-              window.clearTimeout(searchAnimTimer.current);
-              searchAnimTimer.current = null;
-            }
-          }}
-          size="small"
-          placeholder="Поиск"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          variant="outlined"
-          sx={(theme) => ({
-            flex: "1 1 auto",
-            maxWidth: "80%",
-            "& .MuiOutlinedInput-root": {
-              borderRadius: "999px",
-              height: 44,
-              backgroundColor: isSearching
-                ? theme.palette.mode === "dark"
-                  ? "#363636"
-                  : "#E7EEFB"
-                : theme.palette.mode === "dark"
-                ? "#2b2b2b"
-                : theme.palette.background.default,
-              transition:
-                "background-color 0.6s cubic-bezier(0.25, 1.5, 0.5, 1)",
-              "& fieldset": {
-                border: "none",
-              },
-              "& input": {
-                padding: "10px 16px",
-                color: theme.palette.text.primary,
-              },
-            },
-          })}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 24,
-                    height: 24,
-                    animation: isSearchAnimating
-                      ? "waveSearch 1.6s cubic-bezier(0.25, 1.5, 0.5, 1) 1 both"
-                      : "none",
-                    "@keyframes waveSearch": {
-                      "0%": { transform: "rotate(0deg)" },
-                      "30%": { transform: "rotate(-18deg)" },
-                      "60%": { transform: "rotate(18deg)" },
-                      "100%": { transform: "rotate(0deg)" },
-                    },
-                  }}
-                >
-                  <Search
-                    sx={(theme) => ({
-                      opacity: 0.75,
-                      color: isSearching
-                        ? theme.palette.primary.main
-                        : theme.palette.text.secondary,
-                      transition:
-                        "color 0.4s cubic-bezier(0.25, 1.5, 0.5, 1)",
-                    })}
-                  />
-                </Box>
-              </InputAdornment>
-            ),
-          }}
-        />
-
-        <IconButton onClick={() => setCollapsed(true)} sx={{ flexShrink: 0 }}>
-          <MenuOpen />
-        </IconButton>
-      </Box>
-    ) : (
-      // 🔹 Когда панель свернута — показываем иконки
-      <Box
-        sx={{
+        sx={(theme:Theme) => ({
+          position: "fixed",
+          top: `${PANEL_TOP}px`,         // ✅ теперь точно под шапкой
+          left: `${PANEL_LEFT}px`,
+          width: PANEL_WIDTH,
+          height: `calc(100vh - ${PANEL_TOP + PANEL_BOTTOM}px)`,
+          borderRadius: "20px",
+          backgroundColor: theme.palette.background.paper,
+          boxShadow: theme.shadows[3],
+          zIndex: 10,                   // чтобы быть под шапкой (у шапки z-20)
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          gap: 1.2,
-          mt: 1,
-        }}
+          transition: "width 0.4s cubic-bezier(0.25, 1.25, 0.5, 1)",
+        })}
       >
-        <IconButton onClick={() => setCollapsed(false)}>
-          <Menu />
-        </IconButton>
-
-        <IconButton
-          onClick={() => {
-            setCollapsed(false);
-            setTimeout(() => {
-              searchRef.current?.focus();
-              startSearchAnimation(1600);
-            }, 500);
+        {/* ВНУТРЕННЯЯ СКРОЛЛ-ОБЛАСТЬ с padding: 20px */}
+        <Box
+          sx={{
+            flex: "1 1 auto",
+            overflowY: "auto",
+            overflowX: "hidden",
+            padding: "20px 24px 20px 20px",
+            pr: "20px",
+            scrollbarWidth: "auto", // Firefox
+            "&::-webkit-scrollbar": {
+              width: "8px",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: theme.palette.mode === "dark" ? "#555" : "#bbb",
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+              backgroundColor: theme.palette.mode === "dark" ? "#666" : "#999",
+            },
           }}
         >
-          <Search />
-        </IconButton>
-
-        <IconButton
-          onClick={() => navigate(`/lessons/${subjectId}`)}
-          sx={(theme) => ({
-            color:
-              currentPath === `/lessons/${subjectId}`
-                ? theme.palette.primary.main
-                : theme.palette.text.secondary,
-            "&:hover": {
-              backgroundColor:
-                theme.palette.mode === "dark" ? "#3b3b3b" : "#E8EEF7",
-            },
-          })}
-        >
-          <LibraryBooksIcon />
-        </IconButton>
-
-        {modules.map((m) => {
-          const isActive =
-            currentPath === `/lessons/${subjectId}/modules/${m.id}`;
-          return (
-            <IconButton
-              key={m.id}
-              onClick={() => navigate(`/lessons/${subjectId}/modules/${m.id}`)}
-              sx={(theme) => ({
-                color: isActive
-                  ? theme.palette.primary.main
-                  : theme.palette.text.secondary,
-                "&:hover": {
-                  backgroundColor:
-                    theme.palette.mode === "dark" ? "#3b3b3b" : "#E8EEF7",
-                },
-              })}
-            >
-              <MenuBookIcon />
-            </IconButton>
-          );
-        })}
-      </Box>
-    )}
-
-    {!collapsed && <Divider sx={{ my: "10px" }} />}
-
-    {/* === Кнопка "Все модули" === */}
-    {!collapsed && (
-      <Box sx={{ mb: 1.5, borderRadius: "12px", overflow: "hidden" }}>
-        <Box sx={{ display: "flex", alignItems: "center", p: "6px" }}>
-          <Box
-            onClick={() => navigate(`/lessons/${subjectId}`)}
-            sx={(theme) => ({
-              flexGrow: 1,
-              height: 44,
-              borderRadius: "999px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 600,
-              cursor: "pointer",
-              backgroundColor:
-                theme.palette.mode === "dark" ? "#3b3b3b" : "#DCE9F5",
-              color: theme.palette.text.primary,
-              transition: "all .25s ease",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-              "&:hover": {
-                backgroundColor:
-                  theme.palette.mode === "dark" ? "#4a4a4a" : "#cdddeb",
-              },
-              px: 2.5,
-            })}
-          >
-            <Typography sx={{ fontWeight: 600 }}>Все модули</Typography>
-          </Box>
-        </Box>
-      </Box>
-    )}
-
-    {/* === Список модулей === */}
-    {!collapsed &&
-      modules.map((m) => {
-        const isOpen = !!expanded[m.id];
-        return (
-          <Box key={m.id} sx={{ mb: 1.5, borderRadius: "12px", overflow: "hidden" }}>
-            {/* Кнопка модуля */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: isOpen ? 0 : "6px",
-                transition: "gap 0.25s ease",
-                p: "6px",
-              }}
-            >
-              {/* Левая кнопка */}
+          <Box className="sidebar-scroll">
+            {/* === Верхняя панель: поиск + кнопка сворачивания === */}
+            {!collapsed ? (
               <Box
-                onClick={() =>
-                  navigate(`/lessons/${subjectId}/modules/${m.id}`)
-                }
-                sx={(theme) => ({
-                  flexGrow: 1,
+                sx={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  height: 44,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  backgroundColor:
-                    theme.palette.mode === "dark" ? "#3b3b3b" : "#DCE9F5",
-                  color: theme.palette.text.primary,
-                  borderRadius: "999px 0 0 999px",
-                  transition: "all .25s ease",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                  "&:hover": {
-                    backgroundColor:
-                      theme.palette.mode === "dark" ? "#4a4a4a" : "#cdddeb",
-                  },
-                  px: 2.5,
-                })}
-              >
-                <Typography sx={{ fontWeight: 600 }}>{m.title}</Typography>
-              </Box>
-
-              {/* Правая кнопка */}
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setExpanded((prev) => ({
-                    ...prev,
-                    [m.id]: !prev[m.id],
-                  }));
+                  mb: 1,
+                  gap: 1,
+                  opacity: collapsed ? 0 : 1,
+                  transform: collapsed ? "translateX(-10px)" : "translateX(0)",
+                  transition: "all 0.4s cubic-bezier(0.25, 1.25, 0.5, 1)",
                 }}
-                sx={(theme) => ({
-                  height: 44,
-                  width: 44,
-                  backgroundColor:
-                    theme.palette.mode === "dark" ? "#3b3b3b" : "#DCE9F5",
-                  color: theme.palette.text.primary,
-                  borderRadius: "0 999px 999px 0",
-                  transition: "all .25s ease",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                  transform: isOpen ? "translateX(-3px)" : "translateX(0)",
-                  "&:hover": {
-                    backgroundColor:
-                      theme.palette.mode === "dark" ? "#4a4a4a" : "#cdddeb",
-                  },
-                })}
               >
-                {isOpen ? <ExpandLess /> : <ExpandMore />}
-              </IconButton>
-            </Box>
+                <TextField
+                  inputRef={searchRef}
+                  onFocus={() => {
+                    setIsSearching(true);
+                    startSearchAnimation(1600);
+                  }}
+                  onBlur={() => {
+                    setIsSearching(false);
+                    setIsSearchAnimating(false);
+                    if (searchAnimTimer.current) {
+                      window.clearTimeout(searchAnimTimer.current);
+                      searchAnimTimer.current = null;
+                    }
+                  }}
+                  size="small"
+                  placeholder="Поиск"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  variant="outlined"
+                  sx={(theme) => ({
+                    flex: "1 1 auto",
+                    maxWidth: "80%",
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: "999px",
+                      height: 44,
+                      backgroundColor: isSearching
+                        ? theme.palette.mode === "dark"
+                          ? "#363636"
+                          : "#E7EEFB"
+                        : theme.palette.mode === "dark"
+                          ? "#2b2b2b"
+                          : theme.palette.background.default,
+                      transition:
+                        "background-color 0.6s cubic-bezier(0.25, 1.5, 0.5, 1)",
+                      "& fieldset": {
+                        border: "none",
+                      },
+                      "& input": {
+                        padding: "10px 16px",
+                        color: theme.palette.text.primary,
+                      },
+                    },
+                  })}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 24,
+                            height: 24,
+                            animation: isSearchAnimating
+                              ? "waveSearch 1.6s cubic-bezier(0.25, 1.5, 0.5, 1) 1 both"
+                              : "none",
+                            "@keyframes waveSearch": {
+                              "0%": { transform: "rotate(0deg)" },
+                              "30%": { transform: "rotate(-18deg)" },
+                              "60%": { transform: "rotate(18deg)" },
+                              "100%": { transform: "rotate(0deg)" },
+                            },
+                          }}
+                        >
+                          <Search
+                            sx={(theme:Theme) => ({
+                              opacity: 0.75,
+                              color: isSearching
+                                ? theme.palette.primary.main
+                                : theme.palette.text.secondary,
+                              transition:
+                                "color 0.4s cubic-bezier(0.25, 1.5, 0.5, 1)",
+                            })}
+                          />
+                        </Box>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
 
-            {/* === Уроки === */}
-            <Collapse in={isOpen}>
+                <IconButton onClick={() => setCollapsed(true)} sx={{ flexShrink: 0 }}>
+                  <MenuOpen />
+                </IconButton>
+              </Box>
+            ) : (
+              // 🔹 Когда панель свернута — показываем иконки
               <Box
-                sx={(theme) => ({
-                  backgroundColor:
-                    theme.palette.mode === "dark"
-                      ? "#2b2b2b"
-                      : theme.palette.background.default,
-                  p: "6px 6px 0",
-                  borderRadius: "12px",
-                  mt: "4px",
-                  transition: "background-color .3s",
-                })}
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 1.2,
+                  mt: 1,
+                }}
               >
-                {m.lessons.map((lesson) => {
-                  const selected = currentLessonId === lesson.id;
+                <IconButton onClick={() => setCollapsed(false)}>
+                  <Menu />
+                </IconButton>
+
+                <IconButton
+                  onClick={() => {
+                    setCollapsed(false);
+                    setTimeout(() => {
+                      searchRef.current?.focus();
+                      startSearchAnimation(1600);
+                    }, 500);
+                  }}
+                >
+                  <Search />
+                </IconButton>
+
+                <IconButton
+                  onClick={() => navigate(`/lessons/${subjectId}`)}
+                  sx={(theme:Theme) => ({
+                    color:
+                      currentPath === `/lessons/${subjectId}`
+                        ? theme.palette.primary.main
+                        : theme.palette.text.secondary,
+                    "&:hover": {
+                      backgroundColor:
+                        theme.palette.mode === "dark" ? "#3b3b3b" : "#E8EEF7",
+                    },
+                  })}
+                >
+                  <LibraryBooksIcon />
+                </IconButton>
+
+                {modules.map((m) => {
+                  const isActive =
+                    currentPath === `/lessons/${subjectId}/modules/${m.id}`;
                   return (
-                    <Box
-                      key={lesson.id}
-                      onClick={() => navigate(`/lessons/view/${lesson.id}`)}
-                      sx={(theme) => ({
-                        px: "16px",
-                        py: selected ? "5px" : "10px",
-                        my: "6px",
-                        cursor: "pointer",
-                        borderRadius: "100px",
-                        backgroundColor: selected
+                    <IconButton
+                      key={m.id}
+                      onClick={() => navigate(`/lessons/${subjectId}/modules/${m.id}`)}
+                      sx={(theme:Theme) => ({
+                        color: isActive
                           ? theme.palette.primary.main
-                          : "transparent",
-                        color: selected ? "#fff" : theme.palette.text.primary,
+                          : theme.palette.text.secondary,
                         "&:hover": {
-                          backgroundColor: selected
-                            ? theme.palette.primary.dark
-                            : theme.palette.action.hover,
+                          backgroundColor:
+                            theme.palette.mode === "dark" ? "#3b3b3b" : "#E8EEF7",
                         },
                       })}
                     >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span>{lesson.title}</span>
-                        {!isReadonly && (
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteLesson(lesson.id);
-                            }}
-                          >
-                            <Delete fontSize="small" color="error" />
-                          </IconButton>
-                        )}
-                      </Box>
-                    </Box>
+                      <MenuBookIcon />
+                    </IconButton>
                   );
                 })}
-
-                {/* Добавить урок */}
-                {!isReadonly && (
-                  <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => handleAddLesson(m.id)}
-                    >
-                      <Add />
-                    </IconButton>
-                  </Box>
-                )}
               </Box>
-            </Collapse>
-          </Box>
-        );
-      })}
+            )}
 
-    {/* Добавить модуль */}
-    {!isReadonly && !collapsed && (
-      <>
-        <Divider sx={{ my: "10px" }} />
-        <Box sx={{ display: "flex", justifyContent: "center" }}>
-          <IconButton color="primary" onClick={handleAddModule}>
-            <Add />
-          </IconButton>
+            {!collapsed && <Divider sx={{ my: "10px" }} />}
+
+            {/* === Кнопка "Все модули" === */}
+            {!collapsed && (
+              <Box sx={{ mb: 1.5, borderRadius: "12px", overflow: "hidden" }}>
+                <Box sx={{ display: "flex", alignItems: "center", p: "6px" }}>
+                  <motion.div {...springTap}>
+                    <Box
+                      onClick={() => navigate(`/lessons/${subjectId}`)}
+                      sx={(theme:Theme) => {
+                        const isActive = currentPath === `/lessons/${subjectId}`;
+                        return {
+                          flexGrow: 1,
+                          height: 44,
+                          borderRadius: "999px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          backgroundColor: isActive
+                            ? theme.palette.primary.main
+                            : theme.palette.mode === "dark"
+                              ? "#3b3b3b"
+                              : "#DCE9F5",
+                          color: isActive ? "#fff" : theme.palette.text.primary,
+                          transition: "all .25s ease",
+                          boxShadow: isActive
+                            ? "0 3px 8px rgba(0,0,0,0.2)"
+                            : "0 2px 4px rgba(0,0,0,0.1)",
+                          "&:hover": {
+                            backgroundColor: isActive
+                              ? theme.palette.primary.dark
+                              : theme.palette.mode === "dark"
+                                ? "#4a4a4a"
+                                : "#cdddeb",
+                          },
+                          px: 2.5,
+                        };
+                      }}
+                    >
+                      <Typography sx={{ fontWeight: 600 }}>Все модули</Typography>
+                    </Box>
+                  </motion.div>
+                </Box>
+              </Box>
+            )}
+
+            {/* === Список модулей === */}
+            {!collapsed &&
+              modules.map((m) => {
+                const isOpen = !!expanded[m.id];
+                return (
+                  <Box key={m.id} sx={{ mb: 1.5, borderRadius: "12px", overflow: "hidden" }}>
+                    {/* Кнопка модуля */}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: isOpen ? 0 : "6px",
+                        transition: "gap 0.25s ease",
+                        p: "6px",
+                      }}
+                    >
+                      {/* Левая кнопка (название модуля) */}
+                      <motion.div {...springTap}>
+                        <Box
+                          onClick={() => navigate(`/lessons/${subjectId}/modules/${m.id}`)}
+                          sx={(theme:Theme) => {
+                            const isActive = currentPath === `/lessons/${subjectId}/modules/${m.id}`;
+                            return {
+                              flexGrow: 1,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              height: 44,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              backgroundColor: isActive
+                                ? theme.palette.primary.main
+                                : theme.palette.mode === "dark"
+                                  ? "#3b3b3b"
+                                  : "#DCE9F5",
+                              color: isActive ? "#fff" : theme.palette.text.primary,
+                              borderRadius: "999px 0 0 999px",
+                              transition: "all .25s ease",
+                              boxShadow: isActive
+                                ? "0 3px 8px rgba(0,0,0,0.2)"
+                                : "0 2px 4px rgba(0,0,0,0.1)",
+                              "&:hover": {
+                                backgroundColor: isActive
+                                  ? theme.palette.primary.dark
+                                  : theme.palette.mode === "dark"
+                                    ? "#4a4a4a"
+                                    : "#cdddeb",
+                              },
+                              px: 2.5,
+                            };
+                          }}
+                        >
+                          <Typography sx={{ fontWeight: 600 }}>{m.title}</Typography>
+                        </Box>
+                      </motion.div>
+                      {/* Правая кнопка (стрелка раскрытия) */}
+                      <motion.div {...springTap} style={{ display: "inline-flex" }}>
+                        <IconButton
+                          size="small"
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+  e.stopPropagation();
+  setExpanded((prev) => ({
+    ...prev,
+    [m.id]: !prev[m.id],
+  }));
+}}
+                          sx={(theme:Theme) => {
+                            const isActive = currentPath === `/lessons/${subjectId}/modules/${m.id}`;
+                            return {
+                              height: 44,
+                              width: 44,
+                              backgroundColor: isActive
+                                ? theme.palette.primary.main
+                                : theme.palette.mode === "dark"
+                                  ? "#3b3b3b"
+                                  : "#DCE9F5",
+                              color: isActive ? "#fff" : theme.palette.text.primary,
+                              borderRadius: "0 999px 999px 0",
+                              transition: "all .25s ease",
+                              boxShadow: isActive
+                                ? "0 3px 8px rgba(0,0,0,0.2)"
+                                : "0 2px 4px rgba(0,0,0,0.1)",
+                              transform: isOpen ? "translateX(-3px)" : "translateX(0)",
+                              "&:hover": {
+                                backgroundColor: isActive
+                                  ? theme.palette.primary.dark
+                                  : theme.palette.mode === "dark"
+                                    ? "#4a4a4a"
+                                    : "#cdddeb",
+                              },
+                            };
+                          }}
+                        >
+                          {isOpen ? <ExpandLess /> : <ExpandMore />}
+                        </IconButton>
+                      </motion.div>
+                    </Box>
+
+                    {/* === Уроки === */}
+                    <Collapse in={isOpen}>
+                      <Box
+                        sx={(theme:Theme) => ({
+                          backgroundColor:
+                            theme.palette.mode === "dark"
+                              ? "#2b2b2b"
+                              : theme.palette.background.default,
+                          p: "6px 6px 0",
+                          borderRadius: "12px",
+                          mt: "4px",
+                          transition: "background-color .3s",
+                        })}
+                      >
+                        {m.lessons.map((lesson) => {
+                          const selected = currentLessonId === lesson.id;
+                          return (
+                            <Box
+                              key={lesson.id}
+                              onClick={() => navigate(`/lessons/view/${lesson.id}`)}
+                              sx={(theme:Theme) => ({
+                                px: "16px",
+                                py: selected ? "5px" : "10px",
+                                my: "6px",
+                                cursor: "pointer",
+                                borderRadius: "100px",
+                                backgroundColor: selected
+                                  ? theme.palette.primary.main
+                                  : "transparent",
+                                color: selected ? "#fff" : theme.palette.text.primary,
+                                "&:hover": {
+                                  backgroundColor: selected
+                                    ? theme.palette.primary.dark
+                                    : theme.palette.action.hover,
+                                },
+                              })}
+                            >
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                }}
+                              >
+                                <span>{lesson.title}</span>
+                                {!isReadonly && (
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+  e.stopPropagation();
+  handleDeleteLesson(lesson.id);
+}}
+                                  >
+                                    <Delete fontSize="small" color="error" />
+                                  </IconButton>
+                                )}
+                              </Box>
+                            </Box>
+                          );
+                        })}
+
+                        {/* Добавить урок */}
+                        {!isReadonly && (
+
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "center",
+                              alignItems: "center",
+                              py: 1,
+                            }}
+                          >
+                            <motion.div
+                              {...springTap}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => handleAddLesson(m.id)}
+                                sx={{
+                                  width: 36,
+                                  height: 36,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <Add />
+                              </IconButton>
+                            </motion.div>
+                          </Box>
+                        )}
+                      </Box>
+                    </Collapse>
+                  </Box>
+                );
+              })}
+
+            {/* Добавить модуль */}
+            {!isReadonly && !collapsed && (
+              <>
+                <Divider sx={{ my: "10px" }} />
+                <Box sx={{ display: "flex", justifyContent: "center" }}>
+                  <IconButton color="primary" onClick={handleAddModule}>
+                    <Add />
+                  </IconButton>
+                </Box>
+              </>
+            )}
+
+            {/* === Диалоги === */}
+            <AddDialog
+              open={addLessonOpen}
+              title="Создать новый урок"
+              label="Название урока"
+              onClose={() => setAddLessonOpen(false)}
+              onSubmit={async (value) => {
+                if (!pendingModuleId) return;
+                await api.post(`/subjects/modules/${pendingModuleId}/lessons`, {
+                  title: value,
+                });
+                setAddLessonOpen(false);
+                onDataChange?.();
+              }}
+            />
+
+            <AddDialog
+              open={addModuleOpen}
+              title="Создать новый модуль"
+              label="Название модуля"
+              onClose={() => setAddModuleOpen(false)}
+              onSubmit={async (value) => {
+                await api.post(`/subjects/${subjectId}/modules`, { title: value });
+                setAddModuleOpen(false);
+                onDataChange?.();
+              }}
+            />
+            {/* 🧩 КОНЕЦ КОНТЕНТА ПАНЕЛИ */}
+          </Box>
         </Box>
-      </>
-    )}
-    {/* 🧩 КОНЕЦ КОНТЕНТА ПАНЕЛИ */}
-  </Box>
-</Box>
-  </Box>
-  );
-};
+      </Box>
+    );
+  };

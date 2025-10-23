@@ -1,6 +1,6 @@
 // src/pages/Dashboard.tsx
 import React, { useEffect, useState } from "react";
-import { motion, useAnimation } from "framer-motion";
+import { motion as m, useAnimation } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
 import { IconButton, Tooltip } from "@mui/material";
 import { Brightness4, Brightness7 } from "@mui/icons-material";
@@ -9,6 +9,7 @@ import { useThemeContext } from "../theme/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.svg";
 import ExpressiveSegmentedTabs from "../components/ui/ExpressiveSegmentedTabs";
+
 
 const Dashboard: React.FC = () => {
   const theme = useTheme();
@@ -36,14 +37,15 @@ const Dashboard: React.FC = () => {
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen text-center overflow-hidden">
       {/* 🌈 Анимированный фон */}
-      <motion.div
+      <m.div
         key={isDark ? "dark" : "light"}
         className="fixed inset-0"
         style={{
           zIndex: 0,
           pointerEvents: "none",
-          background: `linear-gradient(120deg, ${colors.join(", ")})`,
-          backgroundSize: "400% 400%",
+          backgroundImage: `linear-gradient(120deg, ${colors.join(", ")})`,
+backgroundRepeat: "no-repeat",
+backgroundSize: "400% 400%",
           transition: "background 1s ease-in-out",
         }}
         animate={{
@@ -83,7 +85,7 @@ const Dashboard: React.FC = () => {
         </Tooltip>
 
         {user && (
-          <motion.div
+          <m.div
             onClick={() => navigate("/profile")}
             className="w-[40px] h-[40px] rounded-full flex items-center justify-center text-white font-semibold shadow-light cursor-pointer select-none"
             style={{
@@ -109,12 +111,12 @@ const Dashboard: React.FC = () => {
             }}
           >
             {user.email?.[0]?.toUpperCase() ?? "U"}
-          </motion.div>
+          </m.div>
         )}
       </div>
 
       {/* 🌟 логотип */}
-      <motion.img
+      <m.img
         src={logo}
         alt="Cubit Logo"
         initial={{ scale: 0, rotate: -90, opacity: 0 }}
@@ -125,7 +127,7 @@ const Dashboard: React.FC = () => {
 
       {/* 👋 приветствие */}
       {user?.email && (
-        <motion.h1
+        <m.h1
           className="text-5xl sm:text-6xl font-extrabold tracking-tight drop-shadow-md mb-8 z-10 flex items-center justify-center gap-3"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -136,7 +138,7 @@ const Dashboard: React.FC = () => {
         >
           Привет, {user.email}!
           {/* 🌟 машущая рука */}
-          <motion.span
+          <m.span
             initial={{ rotate: 0 }}
             animate={{
               rotate: [0, 15, -10, 15, -5, 0],
@@ -150,12 +152,12 @@ const Dashboard: React.FC = () => {
             style={{ display: "inline-block", transformOrigin: "70% 70%" }}
           >
             👋
-          </motion.span>
-        </motion.h1>
+          </m.span>
+        </m.h1>
       )}
 
       {/* 🪄 вкладки (крупные стандартные) */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4, duration: 0.5, type: "spring", stiffness: 200 }}
@@ -181,10 +183,10 @@ const Dashboard: React.FC = () => {
             },
           }}
         />
-      </motion.div>
+      </m.div>
 
       {/* ✨ подпись */}
-      <motion.div
+      <m.div
         className="absolute bottom-4 text-sm font-medium opacity-70 z-10"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -197,7 +199,7 @@ const Dashboard: React.FC = () => {
         }}
       >
         Cubit © 2025 — образовательная платформа
-      </motion.div>
+      </m.div>
     </div>
   );
 };

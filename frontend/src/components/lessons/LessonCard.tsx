@@ -1,24 +1,22 @@
+// src/components/lessons/LessonCard.tsx
 import React from "react";
 import {
   Card,
   CardActionArea,
   CardContent,
   Typography,
-  Divider,
-  Box,
   IconButton,
+  Box,
+  Divider,
   useTheme,
 } from "@mui/material";
-import { EditOutlined, DeleteOutline } from "@mui/icons-material";
+import { DeleteOutline, EditOutlined } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import api from "../../api";
-
-type Role = "ADMIN" | "TEACHER" | "STUDENT" | "GUEST";
 
 interface LessonCardProps {
   id: string;
   title: string;
-  role?: Role;
+  role?: "ADMIN" | "TEACHER" | "STUDENT" | "GUEST";
   onDelete?: () => void;
 }
 
@@ -28,32 +26,36 @@ export const LessonCard: React.FC<LessonCardProps> = ({
   role = "STUDENT",
   onDelete,
 }) => {
-  const theme = useTheme();
   const navigate = useNavigate();
+  const theme = useTheme();
   const isTeacher = role === "TEACHER" || role === "ADMIN";
 
-  const handleDelete = async () => {
-    if (!confirm("Удалить этот урок?")) return;
-    await api.delete(`/subjects/lessons/${id}`);
-    onDelete?.();
-  };
-
   return (
-    <Card
-      elevation={3}
-      sx={{
-        borderRadius: 2,
-        height: 220,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        transition: "transform 0.2s ease, box-shadow 0.2s ease",
-        "&:hover": {
-          transform: "translateY(-4px)",
-          boxShadow: theme.shadows[6],
-        },
-      }}
-    >
+<Card
+  elevation={3}
+  sx={{
+    borderRadius: 2,
+    height: 200,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    backgroundColor: theme.palette.background.paper,
+    color: theme.palette.text.primary,
+    boxShadow:
+      theme.palette.mode === "dark"
+        ? "0px 1px 3px rgba(0,0,0,0.8)"
+        : theme.shadows[3],
+    transition:
+      "transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease",
+    "&:hover": {
+      transform: "translateY(-4px)",
+      boxShadow:
+        theme.palette.mode === "dark"
+          ? "0px 2px 8px rgba(0,0,0,0.9)"
+          : theme.shadows[6],
+    },
+  }}
+>
       <CardActionArea
         onClick={() => navigate(`/lessons/view/${id}`)}
         sx={{
@@ -63,6 +65,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({
           justifyContent: "center",
           alignItems: "center",
           textAlign: "center",
+          px: 2,
         }}
       >
         <CardContent sx={{ py: 2 }}>
@@ -70,10 +73,13 @@ export const LessonCard: React.FC<LessonCardProps> = ({
             variant="h6"
             sx={{
               fontWeight: 600,
+              fontSize: "32px",
               textTransform: "uppercase",
-              letterSpacing: ".6px",
-              fontSize: "22px",
+              letterSpacing: ".5px",
               color: theme.palette.text.primary,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
             {title}
@@ -81,41 +87,38 @@ export const LessonCard: React.FC<LessonCardProps> = ({
         </CardContent>
       </CardActionArea>
 
-      <Divider />
-
-      {/* === Нижняя панель управления === */}
+      {/* Разделительная линия и нижняя панель */}
       {isTeacher && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            px: 1.5,
-            py: 1,
-            gap: 0.5,
-          }}
-        >
-          <IconButton
-            color="primary"
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/lessons/edit/${id}`);
+        <>
+          <Divider />
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              px: 1.5,
+              py: 1,
+              gap: 0.5,
             }}
           >
-            <EditOutlined />
-          </IconButton>
-          <IconButton
-            color="error"
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete();
-            }}
-          >
-            <DeleteOutline />
-          </IconButton>
-        </Box>
+            <IconButton
+              color="primary"
+              size="small"
+              onClick={() => navigate(`/lessons/edit/${id}`)}
+            >
+              <EditOutlined />
+            </IconButton>
+            <IconButton
+              color="error"
+              size="small"
+              onClick={() => {
+                if (confirm(`Удалить урок "${title}"?`)) onDelete?.();
+              }}
+            >
+              <DeleteOutline />
+            </IconButton>
+          </Box>
+        </>
       )}
     </Card>
   );

@@ -1,3 +1,4 @@
+// src/components/lessons/SubjectOverview.tsx
 import React, { useEffect, useState } from "react";
 import api from "../../api";
 import { Box, Typography, Grid, Divider, useTheme } from "@mui/material";
@@ -60,13 +61,16 @@ export const SubjectOverview: React.FC<SubjectOverviewProps> = ({
 
   return (
     <Box
-      sx={{
-        px: "20px",
-        pt: "calc(20px + var(--appbar-offset, 0px))",
-        pb: "40px",
-        fontFamily: "Roboto, sans-serif",
-      }}
-    >
+  sx={{
+    px: "20px",
+    pt: "calc(20px + var(--appbar-offset, 0px))",
+    pb: "40px",
+    fontFamily: "Roboto, sans-serif",
+    backgroundColor: theme.palette.background.default,
+    color: theme.palette.text.primary,
+    transition: "background-color 0.3s, color 0.3s",
+  }}
+>
       <Typography
         variant="h4"
         sx={{
@@ -91,18 +95,19 @@ export const SubjectOverview: React.FC<SubjectOverviewProps> = ({
             {m.title}
           </Typography>
 
-          <Grid container spacing={1.875}>
-            {m.lessons.map((lesson) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={lesson.id}>
-                <LessonCard
-                  id={lesson.id}
-                  title={lesson.title}
-                  role={role}
-                  onDelete={onDataChange}
-                />
-              </Grid>
-            ))}
-          </Grid>
+         <Grid container spacing={1.875}>
+  {m.lessons.map((lesson) => (
+
+    <Grid item xs={12} sm={6} md={4} lg={3} key={lesson.id}>
+      <LessonCard
+        id={lesson.id}
+        title={lesson.title}
+        role={role}
+        onDelete={onDataChange}
+      />
+    </Grid>
+  ))}
+</Grid>
 
           {i < modules.length - 1 && <Divider sx={{ mt: 4 }} />}
         </Box>
