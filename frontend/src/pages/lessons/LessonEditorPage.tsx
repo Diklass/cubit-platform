@@ -1,5 +1,4 @@
-// src/pages/lessons/LessonEditorPage.tsx
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api";
 import {
@@ -7,43 +6,36 @@ import {
   Button,
   CircularProgress,
   Typography,
-  Paper,
   IconButton,
   Stack,
   Snackbar,
   Menu,
   MenuItem,
-  TextField,
-  Select,
+  Paper,
+  useTheme,
 } from "@mui/material";
+import {
+  TextFields as TextFieldsIcon,
+  Image as ImageIcon,
+  Movie as MovieIcon,
+  AttachFile as AttachFileIcon,
+  Delete as DeleteIcon,
+  DragIndicator as DragIndicatorIcon,
+  ExpandMore,
+  ExpandLess,
+  Add,
+} from "@mui/icons-material";
 
-import TextFieldsIcon from "@mui/icons-material/TextFields";
-import ImageIcon from "@mui/icons-material/Image";
-import MovieIcon from "@mui/icons-material/Movie";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
-import DeleteIcon from "@mui/icons-material/Delete";
-import AddIcon from "@mui/icons-material/Add";
-
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-
-import { useLayoutEffect } from "react";
-
-import { useCallback } from "react";
-
+import { MainContentLayout } from "../../components/layout/MainContentLayout";
 import { SubjectSidebar } from "../../components/lessons/SubjectSidebar";
-
-import type { Theme } from "@mui/material/styles";
 
 import {
   DndContext,
-  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
-  useDroppable,
   DragEndEvent,
+  pointerWithin,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -52,15 +44,31 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence } from "framer-motion";
-
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import { MainContentLayout } from "../../components/layout/MainContentLayout";
+
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { ColorPickerPopover } from "../../components/ui/ColorPickerPopover";
+import { Menu as MuiMenu, MenuItem as MuiMenuItem } from "@mui/material";
+
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import ArrowUpwardRoundedIcon from "@mui/icons-material/ArrowUpwardRounded";
+import ArrowDownwardRoundedIcon from "@mui/icons-material/ArrowDownwardRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+
+import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import DragIndicatorRoundedIcon from "@mui/icons-material/DragIndicatorRounded";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+
+import type { Theme } from "@mui/material/styles";
+
+
+
 
 
 // === Типы ===
 type Block = { type: "text" | "image" | "video" | "file"; content: string };
-
 type Section = {
   type: "section";
   title: string;
@@ -68,73 +76,15 @@ type Section = {
   collapsed?: boolean;
   color?: string;
 };
-
 type Lesson = {
   id: string;
   title: string;
   content: string | null;
-  subjectId?: string;
-  module?: {
-    id: string;
-    title: string;
-    subject?: {
-      id: string;
-      title: string;
-    };
-  };
+  module?: { id: string; title: string; subject?: { id: string; title: string } };
 };
-
 type Snapshot = { title: string; sections: Section[] };
 
-// === SortableItem (перетаскиваемый блок) ===
-function SortableItem({
-  id,
-  children,
-}: {
-  id: string;
-  children: (opts: { listeners: any }) => React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes}>
-      {children({ listeners })}
-    </div>
-  );
-}
-
-// === DroppableSection (зона для сброса внутри секции) ===
-function DroppableSection({
-  id,
-  children,
-}: {
-  id: string;
-  children: React.ReactNode;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  return (
-    <Box
-      ref={setNodeRef}
-      sx={{
-        mb: 4,
-        p: 0,
-        borderRadius: 2,
-        transition: "background-color 120ms",
-        backgroundColor: isOver ? "action.hover" : "transparent",
-      }}
-    >
-      {children}
-    </Box>
-  );
-}
-
-
+// === Хук глобального undo/redo ===
 function useGlobalUndoRedo(handleUndo: () => void, handleRedo: () => void) {
   useLayoutEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -143,145 +93,113 @@ function useGlobalUndoRedo(handleUndo: () => void, handleRedo: () => void) {
       if (!ctrlOrCmd) return;
 
       const key = e.key.toLowerCase();
-
-      // Поддержка английской и русской раскладки
       const isUndo = (key === "z" || key === "я") && !e.shiftKey;
-      const isRedo =
-        key === "y" ||
-        key === "н" ||
-        (e.shiftKey && (key === "z" || key === "я"));
+      const isRedo = key === "y" || key === "н" || (e.shiftKey && (key === "z" || key === "я"));
 
       if (!isUndo && !isRedo) return;
-
-      // Проверяем, не в поле ввода ли мы (input, textarea)
       const active = document.activeElement;
       const tag = active?.tagName?.toLowerCase();
       const isTypingField =
         tag === "input" || tag === "textarea" || active?.closest(".ql-editor");
-
-      // Если пользователь реально вводит текст — Quill обрабатывает сам
-      // Но если редактируется структура (секции/блоки) — перехватываем
       if (!isTypingField) {
         e.preventDefault();
-        e.stopImmediatePropagation();
         if (isUndo) handleUndo();
         if (isRedo) handleRedo();
       }
     };
-
-    // useLayoutEffect ставит слушатель раньше React/Quill
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [handleUndo, handleRedo]);
 }
 
+// === Перетаскиваемый элемент ===
+function SortableItem({
+  id,
+  children,
+}: {
+  id: string;
+  children: (opts: { listeners: any }) => React.ReactNode;
+}) {
+  const { setNodeRef, transform, transition, attributes, listeners } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      {children({ listeners })}
+    </div>
+  );
+}
+
 export default function LessonEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const theme = useTheme();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
   const [sections, setSections] = useState<Section[]>([]);
   const [title, setTitle] = useState("");
-  const [preview, setPreview] = useState(false);
-
-  const [deletedBlock, setDeletedBlock] = useState<Block | null>(null);
-  const [deletedIndex, setDeletedIndex] = useState<number | null>(null);
-  const [deletedSection, setDeletedSection] = useState<number | null>(null);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "error">("saved");
+  const [autoSaveNotice, setAutoSaveNotice] = useState(false);
 
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
-  const [lastSaved, setLastSaved] = useState<Section[]>([]);
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [autoSaveNotice, setAutoSaveNotice] = useState(false);
+  // Цвет секции (popover)
+const [colorAnchor, setColorAnchor] = useState<HTMLElement | null>(null);
+const [colorTargetIndex, setColorTargetIndex] = useState<number | null>(null);
 
-  const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "error">("saved");
+// Меню контента (⋯)
+const [blockMenuAnchor, setBlockMenuAnchor] = useState<null | HTMLElement>(null);
+const [selectedBlock, setSelectedBlock] = useState<{ secIdx: number; idx: number } | null>(null);
 
-  // Хранит до 3 последних версий урока
-const [history, setHistory] = useState<Snapshot[]>([]);
-const [historyIndex, setHistoryIndex] = useState(-1);
-
-  const historyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSnapshotRef = useRef<string>("");
-
-  const [newModuleTitle, setNewModuleTitle] = useState("");
+const [fabOpen, setFabOpen] = useState(false);
 
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
-  );
 
+
+  const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
   
-const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
-const eq = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
-
-
 
   // === Загрузка урока ===
-   useEffect(() => {
+  useEffect(() => {
     if (!id) return;
     setLoading(true);
     api
       .get<Lesson>(`/subjects/lessons/${id}`)
       .then((r) => {
-        console.log("Ответ от сервера для урока:", r.data);
         setLesson(r.data);
         setTitle(r.data.title);
-        let parsed: Section[] = [];
-        try {
-          parsed = JSON.parse(r.data.content || "[]");
-        } catch {
-          parsed = [];
-        }
-        if (!Array.isArray(parsed) || parsed.length === 0)
-          parsed = [{ type: "section", title: "Основная секция", children: [] }];
-
-        setSections(parsed);
-        const firstSnap = { title: r.data.title, sections: deepClone(parsed) };
-        setHistory([firstSnap]);
-        setHistoryIndex(0);
+        const parsed = JSON.parse(r.data.content || "[]") as Section[];
+        setSections(Array.isArray(parsed) ? parsed : []);
       })
       .catch(() => setLesson(null))
       .finally(() => setLoading(false));
   }, [id]);
 
-
-    const applyChange = useCallback(
+  // === Undo/Redo и история ===
+  const [history, setHistory] = useState<Snapshot[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const applyChange = useCallback(
     (producer: (draft: Snapshot) => void) => {
       setHistory((prev) => {
         const current =
           historyIndex >= 0
             ? deepClone(prev[historyIndex])
             : { title, sections: deepClone(sections) };
-
-        const before = deepClone(current);
         const draft = deepClone(current);
-        if (!Array.isArray(draft.sections)) draft.sections = [];
-        try {
-          producer(draft);
-        } catch (err) {
-          console.error("Ошибка applyChange:", err);
-          return prev;
-        }
-        if (eq(before, draft)) return prev;
-
-        const newHistory = [
-          ...prev.slice(0, historyIndex + 1),
-          draft,
-        ].slice(-50);
-
+        producer(draft);
+        const newHistory = [...prev.slice(0, historyIndex + 1), draft].slice(-50);
         setHistoryIndex(newHistory.length - 1);
         setTitle(draft.title);
-        setSections(deepClone(draft.sections));
+        setSections(draft.sections);
         return newHistory;
       });
     },
     [historyIndex, title, sections]
   );
 
-    // === Undo / Redo функции ===
   const handleUndo = useCallback(() => {
     setHistoryIndex((i) => {
       const newIndex = Math.max(0, i - 1);
@@ -308,746 +226,592 @@ const eq = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
 
   useGlobalUndoRedo(handleUndo, handleRedo);
 
+  // === Сохранение ===
+  const handleSave = useCallback(async () => {
+    if (!id) return;
+    try {
+      await api.patch(`/subjects/lessons/${id}`, {
+        title,
+        content: JSON.stringify(sections),
+      });
+      setSaveStatus("saved");
+      setAutoSaveNotice(true);
+      setTimeout(() => setAutoSaveNotice(false), 2000);
+    } catch {
+      setSaveStatus("error");
+    }
+  }, [id, title, sections]);
 
- 
-
-// === Инициализация истории при загрузке ===
-useEffect(() => {
-  if (!loading && lesson) {
-    const first = { title, sections: deepClone(sections) };
-    setHistory([first]);
-    setHistoryIndex(0);
-  }
-}, [loading, lesson]);
-
-const [sidebarCollapsed, setSidebarCollapsed] = useState(
-  localStorage.getItem("sidebarCollapsed") === "true"
-);
-useEffect(() => {
-  const handler = (e: Event) => {
-    const collapsed = (e as CustomEvent<{ collapsed: boolean }>).detail.collapsed;
-    setSidebarCollapsed(collapsed);
-  };
-  window.addEventListener("sidebar-collapsed-changed", handler);
-  return () => window.removeEventListener("sidebar-collapsed-changed", handler);
-}, []);
-
-// слушаем изменения состояния панели из localStorage
-useEffect(() => {
-  const handler = (e: Event) => {
-    const custom = e as CustomEvent<{ collapsed: boolean }>;
-    const collapsed = custom.detail?.collapsed;
-    document.body.style.setProperty(
-      "--sidebar-width",
-      collapsed ? "84px" : "340px"
-    );
-  };
-  window.addEventListener("sidebar-collapsed-changed", handler);
-  return () => window.removeEventListener("sidebar-collapsed-changed", handler);
-}, []);
-
-
-
-
-  // === Загрузка файлов ===
-  const uploadLessonFile = async (file: File): Promise<string> => {
-    const fd = new FormData();
-    fd.append("file", file);
-    const { data } = await api.post("/uploads", fd, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    return `http://localhost:3001${data.url}`;
-  };
-
-  // === Добавление секции ===
-const handleAddSection = () => {
-  applyChange((d) => {
-    d.sections.push({ type: "section", title: "Новая секция", children: [] });
-  });
-};
-
-// === Добавление блока ===
-const handleAddBlock = (type: Block["type"], secIdx = 0) => {
-  applyChange((d) => {
-    d.sections[secIdx].children.push({ type, content: "" });
-  });
-  setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-  setMenuAnchor(null);
-};
-
-
-
-// === Удаление блока ===
-const handleDeleteBlock = (secIdx: number, idx: number) => {
-  if (confirm("Удалить этот блок?")) {
-    applyChange((d) => {
-      d.sections[secIdx].children.splice(idx, 1);
-    });
-  }
-};
-
-// === Перетаскивание (внутри и между секциями) ===
-const handleDragEnd = ({ active, over }: DragEndEvent) => {
-  if (!over) return;
-
-  // перетаскивание секции
-  if (String(active.id).startsWith("section-") && String(over.id).startsWith("section-")) {
-    const from = Number(String(active.id).split("-")[1]);
-    const to = Number(String(over.id).split("-")[1]);
-    if (from === to) return;
-
-    applyChange((d) => {
-      const [moved] = d.sections.splice(from, 1);
-      d.sections.splice(to, 0, moved);
-    });
-  }
-
-  // перетаскивание блока
-  const [fromSec, fromIdx] = String(active.id).split("-").map(Number);
-  let toSec: number, toIdx: number;
-  if (String(over.id).startsWith("section-")) {
-    toSec = Number(String(over.id).split("-")[1]);
-    toIdx = sections[toSec].children.length;
-  } else {
-    [toSec, toIdx] = String(over.id).split("-").map(Number);
-  }
-
-  if (fromSec === toSec && fromIdx === toIdx) return;
-
-  applyChange((d) => {
-    const [moved] = d.sections[fromSec].children.splice(fromIdx, 1);
-    d.sections[toSec].children.splice(toIdx, 0, moved);
-  });
-};
-
-// === Добавляем снимок в историю (до 3 последних версий) ===
-const pushToHistory = (snapshot: Section[]) => {
-  setHistory((prev) => {
-    const clone = JSON.parse(JSON.stringify(snapshot));
-    const updated = [...prev.slice(-2), clone]; // храним максимум 3
-    setHistoryIndex(updated.length - 1); // указываем на последнее
-    return updated;
-  });
-};
-
-
-
-  // === Сохранение урока ===
-const handleSave = useCallback(async () => {
-  if (!id) return;
-  try {
+  useEffect(() => {
+    if (!lesson) return;
     setSaveStatus("unsaved");
-    await api.patch(`/subjects/lessons/${id}`, {
-      title,
-      content: JSON.stringify(sections),
-    });
-    setLastSaved(JSON.parse(JSON.stringify(sections)));
-    setLastSavedAt(new Date().toLocaleTimeString());
-    setSaveStatus("saved");
-    setAutoSaveNotice(true);
-    setTimeout(() => setAutoSaveNotice(false), 2000);
-  } catch (err) {
-    console.error("Ошибка при сохранении:", err);
-    setSaveStatus("error");
-  }
-}, [id, title, sections]);
+    const timeout = setTimeout(() => handleSave(), 2500);
+    return () => clearTimeout(timeout);
+  }, [sections, title]);
 
-
-const handleUndoDelete = () => {
-  if (
-    deletedBlock !== null &&
-    deletedIndex !== null &&
-    deletedSection !== null
-  ) {
-    applyChange((d) => {
-      d.sections[deletedSection].children.splice(deletedIndex, 0, deletedBlock);
-    });
-  }
-  setDeletedBlock(null);
-  setDeletedIndex(null);
-  setDeletedSection(null);
-  setSnackbarOpen(false);
-};
-
-
-
-// Автосохранение при изменении sections или title
-useEffect(() => {
-  if (!lesson) return;
-  setSaveStatus("unsaved");
-  
-
-  const timeout = setTimeout(() => {
-    handleSave();
-  }, 3000);
-
-  return () => clearTimeout(timeout);
-}, [sections, title]);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   // === UI ===
-if (loading) return <CircularProgress />;
-  if (!lesson)
-    return <Typography color="error">Ошибка: урок не найден</Typography>;
+  if (loading) return <CircularProgress />;
+  if (!lesson) return <Typography color="error">Ошибка: урок не найден</Typography>;
 
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        backgroundColor: theme.palette.background.default,
+        minHeight: "100vh",
+        transition: "all 0.3s ease",
+      }}
+    >
+      {/* === Левая панель === */}
+      {lesson?.module?.subject?.id && (
+        <SubjectSidebar
+          subjectId={lesson.module!.subject!.id}
+          modules={[]}
+          currentLessonId={id}
+          currentRole="TEACHER"
+          onSelectLesson={(lessonId) =>
+            navigate(`/lessons/${lesson.module!.subject!.id}?lessonId=${lessonId}`)
+          }
+        />
+      )}
 
+      <ColorPickerPopover
+        color={
+          colorTargetIndex !== null
+            ? sections[colorTargetIndex]?.color || "#3b82f6"
+            : "#3b82f6"
+        }
+        onChange={(newColor) => {
+          if (colorTargetIndex !== null) {
+            applyChange((d) => {
+              d.sections[colorTargetIndex].color = newColor;
+            });
+          }
+        }}
+        anchorEl={colorAnchor}
+        onClose={() => {
+          setColorAnchor(null);
+          setColorTargetIndex(null);
+        }}
+      />
 
-return (
-   // === Основной контейнер страницы ===
-<Box
-  sx={(theme: Theme) => ({
-    display: "flex",
-    backgroundColor: theme.palette.background.default,
-    minHeight: "100vh",
-    transition: "all 0.3s ease",
-  })}
+      {/* === Главная область === */}
+      <MainContentLayout>
+        {/* === Заголовок урока и статус === */}
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ mb: 4, borderBottom: `1px solid ${theme.palette.divider}`, pb: 2 }}
+        >
+          <Typography
+            variant="h4"
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={(e: React.FocusEvent<HTMLHeadingElement>) => {
+              const newTitle = e.currentTarget.textContent?.trim() || "";
+              applyChange((d) => {
+                d.title = newTitle;
+              });
+            }}
+            sx={{
+              fontWeight: 700,
+              outline: "none",
+              cursor: "text",
+              "&:hover": { color: theme.palette.primary.main },
+            }}
+          >
+            {title}
+          </Typography>
+
+          <Box
+            sx={{
+              px: 2,
+              py: 0.5,
+              borderRadius: 2,
+              fontSize: 14,
+              backgroundColor:
+                saveStatus === "saved"
+                  ? "rgba(76, 175, 80, 0.15)"
+                  : saveStatus === "unsaved"
+                  ? "rgba(255, 193, 7, 0.15)"
+                  : "rgba(244, 67, 54, 0.15)",
+              color:
+                saveStatus === "saved"
+                  ? "#4CAF50"
+                  : saveStatus === "unsaved"
+                  ? "#FFC107"
+                  : "#F44336",
+            }}
+          >
+            {saveStatus === "saved" && "✅ Сохранено"}
+            {saveStatus === "unsaved" && "💾 Не сохранено"}
+            {saveStatus === "error" && "❌ Ошибка"}
+          </Box>
+        </Stack>
+
+        {/* === Секции === */}
+        <DndContext sensors={sensors} collisionDetection={pointerWithin}>
+          <SortableContext
+            items={sections.map((_, i) => `section-${i}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            <AnimatePresence>
+              {sections.map((section, secIdx) => (
+                <SortableItem key={`section-${secIdx}`} id={`section-${secIdx}`}>
+                  {({ listeners }) => (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Box sx={{ mb: 5 }}>
+                        {/* === Заголовок секции === */}
+                      <Stack
+  direction="row"
+  alignItems="center"
+  justifyContent="space-between"
+  sx={{
+    mb: 1.5,
+    borderBottom: `3px solid ${section.color || theme.palette.primary.main}`,
+    pb: 0.5,
+  }}
 >
-    {/* === Левая панель (SidebarTree) === */}
-{lesson?.module?.subject?.id ? (
-  <SubjectSidebar
-  subjectId={lesson.module!.subject!.id}
-  modules={[]} // 🟢 добавь это
-  currentLessonId={id}
-  currentRole="TEACHER"
-  onSelectLesson={(lessonId) =>
-    navigate(`/lessons/${lesson.module!.subject!.id}?lessonId=${lessonId}`)
-  }
-/>
-) : (
-  <Box
+  {/* Название секции */}
+  <Typography
+    variant="h6"
+    contentEditable
+    suppressContentEditableWarning
+    onBlur={(e: React.FocusEvent<HTMLHeadingElement>) =>
+      applyChange((d) => {
+        d.sections[secIdx].title = e.currentTarget.textContent || "";
+      })
+    }
     sx={{
-      width: 320,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      borderRight: (theme:Theme) => `1px solid ${theme.palette.divider}`,
-      marginLeft: "var(--sidebar-width, 340px)",
+      outline: "none",
+      fontWeight: 600,
+      cursor: "text",
+      flexGrow: 1,
+      mr: 2,
     }}
   >
-    <Typography color="text.secondary" variant="body2">
-      Загрузка панели...
-    </Typography>
-  </Box>
-)}
+    {section.title || "Без названия"}
+  </Typography>
 
-
-    {/* === Правая область: Редактор урока === */}
-<MainContentLayout>
-  <Box className="editor-card">
-    {/* === Заголовок и статус === */}
-    <Stack
-      direction="row"
-      alignItems="center"
-      justifyContent="space-between"
-      sx={(theme: Theme) => ({
-        mb: 4,
-        borderBottom: `1px solid ${theme.palette.divider}`,
-        pb: 2,
-      })}
-    >
-      <Typography
-        variant="h4"
-        sx={(theme: Theme) => ({
-          fontWeight: 700,
-          color: theme.palette.text.primary,
-        })}
-      >
-        Редактирование урока
-      </Typography>
-      <Box
-        sx={{
-          px: 2,
-          py: 0.5,
-          borderRadius: 2,
-          fontSize: 14,
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          backgroundColor:
-            saveStatus === "saved"
-              ? "rgba(76, 175, 80, 0.15)"
-              : saveStatus === "unsaved"
-              ? "rgba(255, 193, 7, 0.15)"
-              : "rgba(244, 67, 54, 0.15)",
-          color:
-            saveStatus === "saved"
-              ? "#4CAF50"
-              : saveStatus === "unsaved"
-              ? "#FFC107"
-              : "#F44336",
-          transition: "all 0.3s ease",
-        }}
-      >
-        {saveStatus === "saved" && "✅ Сохранено"}
-        {saveStatus === "unsaved" && "💾 Изменения не сохранены"}
-        {saveStatus === "error" && "❌ Ошибка сохранения"}
-      </Box>
-    </Stack>
-
-    {/* === Поле ввода названия === */}
-    <TextField
-      label="Название урока"
-      value={title}
-      onChange={(e) =>
-        applyChange((d) => {
-          d.title = e.target.value;
-        })
-      }
-      fullWidth
+  {/* Инструменты секции */}
+  <Stack direction="row" alignItems="center" spacing={0.3}>
+    <Box
       sx={{
-        mb: 4,
-        "& .MuiOutlinedInput-root": {
-          borderRadius: "12px",
-        },
+        width: 20,
+        height: 20,
+        borderRadius: "4px",
+        backgroundColor: section.color || theme.palette.primary.main,
+        border: `1px solid ${theme.palette.divider}`,
+        cursor: "pointer",
+      }}
+      onClick={(e: React.MouseEvent<HTMLDivElement>) => {
+        setColorAnchor(e.currentTarget);
+        setColorTargetIndex(secIdx);
       }}
     />
 
-      {/* === Контент: Предпросмотр / Редактор === */}
-      {preview ? (
-        // ======= ПРЕДПРОСМОТР =======
-        <Box sx={{ p: 1 }}>
-          {sections.map((section, secIdx) => (
-            <Box key={secIdx} sx={{ mb: 4 }}>
-        <Typography
-          variant="h6"
-          sx={{
-            mb: 1,
-            pl: 2,
-            borderLeft: `6px solid ${section.color || "#1976d2"}`,
-            borderBottom: "1px solid",
-            borderColor: "divider",
-          }}
-        >
-          {section.title}
-        </Typography>
-              {section.children.length === 0 && (
-                <Typography variant="body2" color="text.secondary">
-                  Пустая секция
-                </Typography>
-              )}
-
-              {section.children.map((b, idx) => (
-                <Box key={`${secIdx}-${idx}`} sx={{ mb: 2 }}>
-                  {b.type === "text" && (
-                    <div dangerouslySetInnerHTML={{ __html: b.content }} />
-                  )}
-                  {b.type === "image" && b.content && (
-                    <img
-                      src={b.content}
-                      alt="Изображение"
-                      style={{ maxWidth: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 8 }}
-                    />
-                  )}
-                  {b.type === "video" && (
-                    <Typography color="text.secondary">
-                      Видео: {b.content}
-                    </Typography>
-                  )}
-                  {b.type === "file" && b.content && (
-                    <a href={b.content} target="_blank" rel="noreferrer">
-                      📎 {decodeURIComponent(b.content.split("/").pop() || "Файл")}
-                    </a>
-                  )}
-                </Box>
-              ))}
-            </Box>
-          ))}
-        </Box>
+    <IconButton
+      size="small"
+      onClick={() =>
+        applyChange((d) => {
+          d.sections[secIdx].collapsed = !d.sections[secIdx].collapsed;
+        })
+      }
+    >
+      {section.collapsed ? (
+        <ExpandMoreRoundedIcon fontSize="small" />
       ) : (
-        // ======= РЕДАКТОР =======
-<DndContext
-  sensors={sensors}
-  collisionDetection={pointerWithin}
-  onDragEnd={({ active, over }) => {
-    if (!over) return;
+        <ExpandLessRoundedIcon fontSize="small" />
+      )}
+    </IconButton>
 
-    // если перетаскиваем секцию
-    if (String(active.id).startsWith("section-") && String(over.id).startsWith("section-")) {
-      const from = Number(String(active.id).split("-")[1]);
-      const to = Number(String(over.id).split("-")[1]);
-      if (from === to) return;
+    <IconButton
+      size="small"
+      color="error"
+      onClick={() => {
+        if (confirm(`Удалить секцию "${section.title}"?`))
+          applyChange((d) => d.sections.splice(secIdx, 1));
+      }}
+    >
+      <DeleteOutlineRoundedIcon fontSize="small" />
+    </IconButton>
 
-      applyChange((d) => {
-        const [moved] = d.sections.splice(from, 1);
-        d.sections.splice(to, 0, moved);
-      });
-      return;
-    }
+    <IconButton {...listeners} size="small">
+      <DragIndicatorRoundedIcon fontSize="small" />
+    </IconButton>
+  </Stack>
+</Stack>
 
-    // иначе — обычное перемещение блоков
-    const [fromSec, fromIdx] = String(active.id).split("-").map(Number);
-    let toSec: number, toIdx: number;
-    if (String(over.id).startsWith("section-")) {
-      toSec = Number(String(over.id).split("-")[1]);
-      toIdx = sections[toSec].children.length;
-    } else {
-      [toSec, toIdx] = String(over.id).split("-").map(Number);
-    }
-
-    if (fromSec === toSec && fromIdx === toIdx) return;
-
-    applyChange((d) => {
-      const [moved] = d.sections[fromSec].children.splice(fromIdx, 1);
-      d.sections[toSec].children.splice(toIdx, 0, moved);
-    });
-  }}
->
-  {/* === Сортировка СЕКЦИЙ === */}
-  <SortableContext
-    items={sections.map((_, secIdx) => `section-${secIdx}`)}
-    strategy={verticalListSortingStrategy}
-  >
-    {sections.map((section, secIdx) => (
-      <SortableItem key={`section-${secIdx}`} id={`section-${secIdx}`}>
-        {({ listeners }) => (
-          <Box sx={{ mb: 4 }}>
-            {/* === Шапка секции === */}
-            <Paper
-  sx={{
-    p: 2.5,
-    mb: 3,
-    borderLeft: `6px solid ${section.color || "#3b82f6"}`,
-    backgroundColor: "#fff",
-    borderRadius: "16px",
-    boxShadow: "0 3px 12px rgba(0,0,0,0.05)",
-    transition: "transform 0.2s ease, box-shadow 0.2s ease",
-    "&:hover": {
-      transform: "translateY(-2px)",
-      boxShadow: "0 6px 16px rgba(0,0,0,0.08)",
-    },
-  }}
->
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ flex: 1 }}>
-                <IconButton {...listeners}>
-                  <DragIndicatorIcon />
-                </IconButton>
-                  <IconButton
-                    onClick={() => {
-                    applyChange((d) => {
-                      d.sections[secIdx].collapsed = !d.sections[secIdx].collapsed;
-                    });
-                    }}
-                  >
-                    {section.collapsed ? <ExpandMoreIcon /> : <ExpandLessIcon />}
-                  </IconButton>
-                <TextField
-                  fullWidth
-                  value={section.title}
-                  onChange={(e) => {
-                    applyChange((d) => {
-                      d.sections[secIdx].title = e.target.value;
-                    });
-                  }}
-                />
-              </Stack>
-
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <Select
-                  size="small"
-                  value={section.color || "#1976d2"}
-                  onChange={(e) => {
-                    applyChange((d) => {
-                      d.sections[secIdx].color = e.target.value as string;
-                    });
-                  }}
-                  sx={{ minWidth: 120 }}
-                >
-                  <MenuItem value="#1976d2">Синий</MenuItem>
-                  <MenuItem value="#2e7d32">Зелёный</MenuItem>
-                  <MenuItem value="#9c27b0">Фиолетовый</MenuItem>
-                  <MenuItem value="#f57c00">Оранжевый</MenuItem>
-                  <MenuItem value="#d32f2f">Красный</MenuItem>
-                </Select>
-
-                {/* === Кнопка удалить секцию === */}
-                <IconButton
-                  size="small"
-                  color="error"
-                  onClick={() => {
-                    if (confirm(`Удалить секцию "${section.title}"?`)) {
-                      applyChange((d) => {
-                        d.sections.splice(secIdx, 1);
-                      });
-                    }
-                  }}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Stack>
-            </Paper>
-
-            {/* === Блоки внутри секции === */}
-            {!section.collapsed && (
-              <SortableContext
-                items={section.children.map((_, idx) => `${secIdx}-${idx}`)}
-                strategy={verticalListSortingStrategy}
-              >
-                <AnimatePresence>
-                  {section.children.map((b, idx) => (
-                    <SortableItem key={`${secIdx}-${idx}`} id={`${secIdx}-${idx}`}>
-                      {({ listeners }) => (
-                        // оставь тут весь твой старый код блока (Box, ReactQuill и т.д.)
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <Box
-                            sx={(theme:Theme) => ({
-                              mb: 2,
-    p: 2.2,
-    border: "1px solid",
-    borderColor: theme.palette.divider,
-    borderRadius: "14px",
-    backgroundColor: "#fafafa",
-    transition: "box-shadow .25s ease, transform .25s ease",
-    "&:hover": {
-      boxShadow: "0 3px 10px rgba(0,0,0,0.05)",
-      transform: "translateY(-1px)",
-    },
-                            })}
-                            onDragOver={(e: React.DragEvent<HTMLDivElement>) => e.preventDefault()}
-onDrop={async (e: React.DragEvent<HTMLDivElement>) => {
-  e.preventDefault();
-  const file = e.dataTransfer.files?.[0];
-  if (file && (b.type === "image" || b.type === "file")) {
-    const url = await uploadLessonFile(file);
-    applyChange((d) => {
-      d.sections[secIdx].children[idx].content = url;
-    });
-  }
-}}
-                          >
-                            <Stack direction="row" alignItems="flex-start" spacing={2}>
-                              <Box sx={{ flex: 1 }}>
-                                <Select
-                                  size="small"
-                                  value={b.type}
-                                  onChange={(e) => {
-                                    applyChange((d) => { d.sections[secIdx].children[idx].type = e.target.value as Block["type"]; });
-                                  }}
-                                  sx={{ mb: 1 }}
-                                >
-                                  <MenuItem value="text">Текст</MenuItem>
-                                  <MenuItem value="image">Изображение</MenuItem>
-                                  <MenuItem value="video">Видео</MenuItem>
-                                  <MenuItem value="file">Файл</MenuItem>
-                                </Select>
-
+                        {/* === Контент секции === */}
+                        {!section.collapsed && (
+                          <Box sx={{ pl: 1 }}>
+                            {section.children.map((b, idx) => (
+                              <Box
+                                key={idx}
+                                sx={{
+                                  position: "relative",
+                                  mb: 2,
+                                  p: 2,
+                                  borderRadius: 2,
+                                  backgroundColor: theme.palette.background.paper,
+                                  "&:hover .block-tools": {
+                                    opacity: 1,
+                                    transform: "scale(1)",
+                                  },
+                                }}
+                              >
                                 {b.type === "text" && (
-                                  <ReactQuill
-                                    value={b.content}
-                                    onChange={(val) => {
-                                      applyChange((d) => {
-                                        d.sections[secIdx].children[idx].content = val;
-                                      });
-                                    }}
-                                    modules={{
-                                      toolbar: [
-                                        ["bold", "italic", "underline", "strike"],
-                                        [{ header: [1, 2, 3, false] }],
-                                        [{ list: "ordered" }, { list: "bullet" }],
-                                        ["link", "clean"],
-                                      ],
-                                    }}
-                                    formats={[
-                                      "header",
-                                      "bold",
-                                      "italic",
-                                      "underline",
-                                      "strike",
-                                      "list",
-                                      "bullet",
-                                      "link",
-                                    ]}
-                                    placeholder="Введите текст..."
-                                    style={{ minHeight: 120 }}
+                                  <div
+                                    dangerouslySetInnerHTML={{ __html: b.content }}
                                   />
                                 )}
-
                                 {b.type === "image" && (
-                                  <>
-                                    {b.content ? (
-                                      <Box>
-                                        <img
-                                          src={b.content}
-                                          alt="Превью"
-                                          style={{
-                                            maxWidth: "300px",
-                                            maxHeight: 200,
-                                            objectFit: "cover",
-                                            borderRadius: 8,
-                                            marginBottom: 8,
-                                          }}
-                                        />
-                                        <Stack direction="row" spacing={1}>
-                                          <Button
-                                            size="small"
-                                            variant="outlined"
-                                            onClick={async () => {
-                                              const input = document.createElement("input");
-                                              input.type = "file";
-                                              input.accept = "image/*";
-                                              input.onchange = async () => {
-                                                const file = input.files?.[0];
-                                                if (file) {
-                                                  const url = await uploadLessonFile(file);
-                                                  applyChange((d) => {
-                                                    d.sections[secIdx].children[idx].content = url;
-                                                  });
-                                                }
-                                              };
-                                              input.click();
-                                            }}
-                                          >
-                                            Заменить
-                                          </Button>
-                                          <Button
-                                            size="small"
-                                            color="error"
-                                            onClick={() => {
-                                              applyChange((d) => { d.sections[secIdx].children[idx].content = ""; });
-                                            }}
-                                          >
-                                            Удалить
-                                          </Button>
-                                        </Stack>
-                                      </Box>
-                                    ) : (
-                                      <Button
-                                        variant="outlined"
-                                        onClick={async () => {
-                                          const input = document.createElement("input");
-                                          input.type = "file";
-                                          input.accept = "image/*";
-                                          input.onchange = async () => {
-                                            const file = input.files?.[0];
-                                            if (file) {
-                                              const url = await uploadLessonFile(file);
-                                              applyChange((d) => { d.sections[secIdx].children[idx].content = url; });
-                                            }
-                                          };
-                                          input.click();
-                                        }}
-                                      >
-                                        Загрузить изображение
-                                      </Button>
-                                    )}
-                                  </>
-                                )}
-
-                                {b.type === "video" && (
-                                  <TextField
-                                    fullWidth
-                                    placeholder="Вставьте ссылку на видео"
-                                    value={b.content}
-                                    onChange={(e) => {
-                                      applyChange((d) => { d.sections[secIdx].children[idx].content = e.target.value; });
-                                    }}
+                                  <img
+                                    src={b.content}
+                                    alt=""
+                                    style={{ maxWidth: "100%", borderRadius: 8 }}
                                   />
                                 )}
-
-                                {b.type === "file" && (
-                                  <>
-                                    {b.content ? (
-                                      <Box>
-                                        <a
-                                          href={b.content}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          style={{ display: "block", marginBottom: 8 }}
-                                        >
-                                          📎{" "}
-                                          {decodeURIComponent(
-                                            b.content.split("/").pop() || "Файл"
-                                          )}
-                                        </a>
-                                        <Stack direction="row" spacing={1}>
-                                          <Button
-                                            size="small"
-                                            variant="outlined"
-                                            onClick={async () => {
-                                              const input = document.createElement("input");
-                                              input.type = "file";
-                                              input.onchange = async () => {
-                                                const file = input.files?.[0];
-                                                if (file) {
-                                                  const url = await uploadLessonFile(file);
-                                                  applyChange((d) => { d.sections[secIdx].children[idx].content = url; });
-                                                }
-                                              };
-                                              input.click();
-                                            }}
-                                          >
-                                            Заменить
-                                          </Button>
-                                          <Button
-                                            size="small"
-                                            color="error"
-                                            onClick={() => {
-                                              applyChange((d) => { d.sections[secIdx].children[idx].content = ""; });
-                                            }}
-                                          >
-                                            Удалить
-                                          </Button>
-                                        </Stack>
-                                      </Box>
-                                    ) : (
-                                      <Button
-                                        variant="outlined"
-                                        onClick={async () => {
-                                          const input = document.createElement("input");
-                                          input.type = "file";
-                                          input.onchange = async () => {
-                                            const file = input.files?.[0];
-                                            if (file) {
-                                              const url = await uploadLessonFile(file);
-                                              applyChange((d) => { d.sections[secIdx].children[idx].content = url; });
-                                            }
-                                          };
-                                          input.click();
-                                        }}
-                                      >
-                                        Прикрепить файл
-                                      </Button>
-                                    )}
-                                  </>
-                                )}
-                              </Box>
-
-                              {/* Хэндл перетаскивания + удаление */}
-                              <Stack direction="column" spacing={1}>
-                                <IconButton {...listeners} size="small">
-                                  <DragIndicatorIcon fontSize="small" />
-                                </IconButton>
+                                {/* инструменты блока */}
                                 <IconButton
                                   size="small"
-                                  color="error"
-                                  onClick={() => handleDeleteBlock(secIdx, idx)}
+                                  className="block-tools"
+                                  sx={{
+  position: "absolute",
+  top: 6,
+  right: 6,
+  opacity: blockMenuAnchor ? 1 : 0,
+  transform: "scale(0.95)",
+  transition: "all 0.2s ease",
+}}
+                                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                    e.stopPropagation();
+                                    setBlockMenuAnchor(e.currentTarget);
+                                    setSelectedBlock({ secIdx, idx });
+                                  }}
                                 >
-                                  <DeleteIcon fontSize="small" />
+                                  <MoreVertIcon fontSize="small" />
                                 </IconButton>
-                              </Stack>
-                            </Stack>
-                          </Box>
-                         </motion.div>
-                      )}
-                    </SortableItem>
-                  ))}
-                </AnimatePresence>
-              </SortableContext>
-            )}
-          </Box>
-        )}
-      </SortableItem>
-    ))}
-  </SortableContext>
-</DndContext>
-      )}
-  </Box>
-</MainContentLayout>
+                              </Box>
+                            ))}
 
-      {/* === Плавающая панель действий === */}
+                            {/* + контент */}
+                           <Box
+  sx={{
+    position: "relative",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    mt: 4,
+  }}
+>
+  {/* FAB options */}
+  <AnimatePresence>
+    {fabOpen && (
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 30 }}
+        transition={{ duration: 0.25 }}
+        style={{
+          position: "absolute",
+          bottom: 76,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "12px",
+          zIndex: 20,
+        }}
+      >
+        {[
+          { icon: <TextFieldsIcon />, label: "Текст", type: "text" as const },
+          { icon: <ImageIcon />, label: "Изображение", type: "image" as const },
+          { icon: <MovieIcon />, label: "Видео", type: "video" as const },
+          { icon: <AttachFileIcon />, label: "Файл", type: "file" as const },
+        ].map((item, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 10 }}
+            transition={{ delay: i * 0.05 }}
+          >
+            <Button
+              variant="contained"
+              startIcon={item.icon}
+              onClick={() => {
+                const sectionIndex = sections.findIndex((s) =>
+                  s.children.some(() => true)
+                );
+                if (sectionIndex === -1) return;
+                applyChange((d) => {
+                  const newBlock: Block =
+                    item.type === "text"
+                      ? { type: "text", content: "<p>Новый текст</p>" }
+                      : item.type === "image"
+                      ? {
+                          type: "image",
+                          content: "https://placehold.co/600x400",
+                        }
+                      : item.type === "video"
+                      ? {
+                          type: "video",
+                          content:
+                            "https://www.youtube.com/embed/dQw4w9WgXcQ",
+                        }
+                      : { type: "file", content: "https://example.com/file.pdf" };
+                  d.sections[sectionIndex].children.push(newBlock);
+                });
+                setFabOpen(false);
+              }}
+              sx={(theme: Theme) => ({
+                borderRadius: "9999px",
+                textTransform: "none",
+                fontWeight: 600,
+                fontSize: "0.95rem",
+                px: 3,
+                py: 1.2,
+                minWidth: 180,
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 1.2,
+                boxShadow:
+                  theme.palette.mode === "dark"
+                    ? "0 3px 8px rgba(0,0,0,0.5)"
+                    : "0 3px 8px rgba(0,0,0,0.15)",
+                backgroundColor:
+                  theme.palette.mode === "dark"
+                    ? "#3b3b3b"
+                    : "#DCE9F5",
+                color: theme.palette.text.primary,
+                "&:hover": {
+                  backgroundColor:
+                    theme.palette.mode === "dark"
+                      ? "#4a4a4a"
+                      : "#cdddeb",
+                },
+                "&:active": {
+                  backgroundColor: theme.palette.primary.main,
+                  color: "#fff",
+                },
+              })}
+            >
+              {item.label}
+            </Button>
+          </motion.div>
+        ))}
+      </motion.div>
+    )}
+  </AnimatePresence>
+
+  {/* Главная кнопка FAB */}
+  <IconButton
+    onClick={() => setFabOpen(!fabOpen)}
+    sx={(theme: Theme) => ({
+      width: 68,
+      height: 68,
+      borderRadius: "50%",
+      backgroundColor: fabOpen
+        ? theme.palette.primary.main
+        : theme.palette.mode === "dark"
+        ? "#3b3b3b"
+        : "#DCE9F5",
+      color: fabOpen
+        ? "#fff"
+        : theme.palette.text.primary,
+      boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+      "&:hover": {
+        backgroundColor: fabOpen
+          ? theme.palette.primary.dark
+          : theme.palette.mode === "dark"
+          ? "#4a4a4a"
+          : "#cdddeb",
+        transform: "scale(1.05)",
+      },
+      transition: "all 0.25s ease",
+      zIndex: 25,
+    })}
+  >
+    <motion.div
+      animate={{ rotate: fabOpen ? 45 : 0 }}
+      transition={{ duration: 0.25 }}
+    >
+      <AddRoundedIcon fontSize="large" />
+    </motion.div>
+  </IconButton>
+</Box>
+                          </Box>
+                        )}
+                      </Box>
+                    </motion.div>
+                  )}
+                </SortableItem>
+              ))}
+            </AnimatePresence>
+          </SortableContext>
+        </DndContext>
+      </MainContentLayout>
+
+      <MuiMenu
+  anchorEl={blockMenuAnchor}
+  open={Boolean(blockMenuAnchor)}
+  onClose={() => setBlockMenuAnchor(null)}
+  anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+  transformOrigin={{ vertical: "top", horizontal: "center" }}
+  TransitionProps={{
+    timeout: 160,
+  }}
+  // кастомим сам "лист" меню
+  PaperProps={{
+    sx: {
+      mt: 0.5,
+      borderRadius: "16px",
+      px: 1,
+      py: 1,
+      backgroundColor: theme.palette.background.paper,
+      boxShadow:
+        theme.palette.mode === "dark"
+          ? "0 12px 32px rgba(0,0,0,0.7)"
+          : "0 12px 32px rgba(0,0,0,0.12)",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "stretch",
+      gap: 0.5,
+      minWidth: 48,
+      animation: "fadeScaleIn 0.16s ease-out",
+      "@keyframes fadeScaleIn": {
+        from: { opacity: 0, transform: "scale(0.9)" },
+        to: { opacity: 1, transform: "scale(1)" },
+      },
+    },
+  }}
+  MenuListProps={{
+    // убираем дефолтный горизонтальный padding списка меню
+    sx: {
+      p: 0,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 0.5,
+    },
+  }}
+>
+  {/* Изменить */}
+  <IconButton
+    size="small"
+    onClick={() => {
+      if (!selectedBlock) return;
+      // TODO: твой модал/редактор блока
+      alert("Изменение контента пока не реализовано");
+      // 👇 не закрываем меню, чтобы можно было вызвать ещё действия
+    }}
+    sx={{
+      width: 40,
+      height: 40,
+      borderRadius: "12px",
+      color: theme.palette.text.primary,
+      "&:hover": {
+        backgroundColor: theme.palette.action.hover,
+      },
+    }}
+  >
+    <EditOutlinedIcon fontSize="small" />
+  </IconButton>
+
+  {/* Вверх */}
+  <IconButton
+    size="small"
+    onClick={() => {
+      if (!selectedBlock) return;
+      applyChange((d) => {
+        const { secIdx, idx } = selectedBlock;
+        if (idx > 0) {
+          const [moved] = d.sections[secIdx].children.splice(idx, 1);
+          d.sections[secIdx].children.splice(idx - 1, 0, moved);
+        }
+      });
+      // меню остаётся открытым
+    }}
+    sx={{
+      width: 40,
+      height: 40,
+      borderRadius: "12px",
+      color: theme.palette.text.primary,
+      "&:hover": {
+        backgroundColor: theme.palette.action.hover,
+      },
+    }}
+  >
+    <ArrowUpwardRoundedIcon fontSize="small" />
+  </IconButton>
+
+  {/* Вниз */}
+  <IconButton
+    size="small"
+    onClick={() => {
+      if (!selectedBlock) return;
+      applyChange((d) => {
+        const { secIdx, idx } = selectedBlock;
+        const len = d.sections[secIdx].children.length;
+        if (idx < len - 1) {
+          const [moved] = d.sections[secIdx].children.splice(idx, 1);
+          d.sections[secIdx].children.splice(idx + 1, 0, moved);
+        }
+      });
+      // меню остаётся открытым
+    }}
+    sx={{
+      width: 40,
+      height: 40,
+      borderRadius: "12px",
+      color: theme.palette.text.primary,
+      "&:hover": {
+        backgroundColor: theme.palette.action.hover,
+      },
+    }}
+  >
+    <ArrowDownwardRoundedIcon fontSize="small" />
+  </IconButton>
+
+  {/* Удалить */}
+  <IconButton
+    size="small"
+    onClick={() => {
+      if (!selectedBlock) return;
+      const { secIdx, idx } = selectedBlock;
+      applyChange((d) => {
+        d.sections[secIdx].children.splice(idx, 1);
+      });
+      // после удаления закрываем меню логично
+      setBlockMenuAnchor(null);
+    }}
+    sx={{
+      width: 40,
+      height: 40,
+      borderRadius: "12px",
+      color: theme.palette.error.main,
+      "&:hover": {
+        backgroundColor:
+          theme.palette.mode === "dark"
+            ? "rgba(255,0,0,0.08)"
+            : "rgba(255,0,0,0.06)",
+      },
+    }}
+  >
+    <DeleteOutlineRoundedIcon fontSize="small" />
+  </IconButton>
+</MuiMenu>
+
+
+      {/* === Нижняя панель действий === */}
       <Box
         sx={{
           position: "fixed",
@@ -1060,100 +824,151 @@ onDrop={async (e: React.DragEvent<HTMLDivElement>) => {
         }}
       >
         <Paper
-  elevation={5}
-  sx={{
-    borderRadius: "999px",
-    px: 2.5,
-    py: 1.2,
-    display: "flex",
-    alignItems: "center",
-    gap: 1.5,
-    backdropFilter: "blur(10px)",
-    backgroundColor: "rgba(255,255,255,0.7)",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-  }}
->
-          <Button onClick={() => setPreview(!preview)}>
-            {preview ? "Редактировать" : "Предпросмотр"}
-          </Button>
-
-           <Button onClick={handleUndo} disabled={historyIndex <= 0}>
-          ↩ Undo
-        </Button>
-        <Button
-          onClick={handleRedo}
-          disabled={historyIndex >= history.length - 1}
+          elevation={5}
+          sx={{
+            borderRadius: "999px",
+            px: 2.5,
+            py: 1.2,
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            backdropFilter: "blur(10px)",
+            backgroundColor: "rgba(255,255,255,0.7)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+          }}
         >
-          ↪ Redo
-        </Button>
-
-
+          <Button onClick={handleUndo} disabled={historyIndex <= 0}>
+            ↩ Undo
+          </Button>
+          <Button onClick={handleRedo} disabled={historyIndex >= history.length - 1}>
+            ↪ Redo
+          </Button>
           <Button variant="outlined" onClick={() => navigate(-1)}>
             Отмена
           </Button>
           <Button variant="contained" onClick={handleSave}>
             Сохранить
           </Button>
-          <Button onClick={handleAddSection}>+ Секция</Button>
-        </Paper>
-
-        {/* Кнопка + (добавляет блок в первую секцию, как и было) */}
-       <IconButton
+         <Button
+  variant="contained"
+  startIcon={<AddRoundedIcon />}
+  onClick={() =>
+    applyChange((d) =>
+      d.sections.push({
+        type: "section",
+        title: "Новая секция",
+        children: [],
+      })
+    )
+  }
   sx={{
-    width: 52,
-    height: 52,
-    borderRadius: "14px",
-    backgroundColor: "#3b82f6",
+    borderRadius: "999px",
+    textTransform: "none",
+    fontWeight: 500,
+    px: 2.5,
+    py: 1.2,
+    backgroundColor: theme.palette.primary.main,
     color: "#fff",
-    boxShadow: "0 4px 12px rgba(59,130,246,0.4)",
     "&:hover": {
-      backgroundColor: "#2563eb",
-      boxShadow: "0 6px 18px rgba(59,130,246,0.5)",
+      backgroundColor: theme.palette.primary.dark,
+      transform: "scale(1.03)",
+      transition: "all 0.2s ease",
     },
   }}
 >
-  <AddIcon />
-</IconButton>
-
-        <Menu
-          anchorEl={menuAnchor}
-          open={Boolean(menuAnchor)}
-          onClose={() => setMenuAnchor(null)}
-        >
-          <MenuItem onClick={() => handleAddBlock("text")}>
-            <TextFieldsIcon fontSize="small" sx={{ mr: 1 }} /> Текст
-          </MenuItem>
-          <MenuItem onClick={() => handleAddBlock("image")}>
-            <ImageIcon fontSize="small" sx={{ mr: 1 }} /> Изображение
-          </MenuItem>
-          <MenuItem onClick={() => handleAddBlock("video")}>
-            <MovieIcon fontSize="small" sx={{ mr: 1 }} /> Видео
-          </MenuItem>
-          <MenuItem onClick={() => handleAddBlock("file")}>
-            <AttachFileIcon fontSize="small" sx={{ mr: 1 }} /> Файл
-          </MenuItem>
-        </Menu>
+  Секция
+</Button>
+        </Paper>
       </Box>
 
-      {/* Snackbar */}
-           <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={4000}
-        onClose={() => setSnackbarOpen(false)}
-        message="Блок удалён"
-        action={
-          <Button color="secondary" size="small" onClick={handleUndoDelete}>
-            Отменить
-          </Button>
-        }
-      />
+      {/* === Меню выбора типа контента === */}
+     <Menu
+  anchorEl={menuAnchor}
+  open={Boolean(menuAnchor)}
+  onClose={() => setMenuAnchor(null)}
+>
+  <MenuItem
+    onClick={() => {
+      const sectionIndex = sections.findIndex((s) =>
+        s.children.some(() => true)
+      );
+      if (sectionIndex === -1) return;
+      applyChange((d) => {
+        d.sections[sectionIndex].children.push({
+          type: "text",
+          content: "<p>Новый текст</p>",
+        });
+      });
+      setMenuAnchor(null);
+    }}
+  >
+    <TextFieldsIcon fontSize="small" sx={{ mr: 1 }} /> Текст
+  </MenuItem>
+
+  <MenuItem
+    onClick={() => {
+      const sectionIndex = sections.findIndex((s) =>
+        s.children.some(() => true)
+      );
+      if (sectionIndex === -1) return;
+      applyChange((d) => {
+        d.sections[sectionIndex].children.push({
+          type: "image",
+          content: "https://placehold.co/600x400",
+        });
+      });
+      setMenuAnchor(null);
+    }}
+  >
+    <ImageIcon fontSize="small" sx={{ mr: 1 }} /> Изображение
+  </MenuItem>
+
+  <MenuItem
+    onClick={() => {
+      const sectionIndex = sections.findIndex((s) =>
+        s.children.some(() => true)
+      );
+      if (sectionIndex === -1) return;
+      applyChange((d) => {
+        d.sections[sectionIndex].children.push({
+          type: "video",
+          content: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+        });
+      });
+      setMenuAnchor(null);
+    }}
+  >
+    <MovieIcon fontSize="small" sx={{ mr: 1 }} /> Видео
+  </MenuItem>
+
+  <MenuItem
+    onClick={() => {
+      const sectionIndex = sections.findIndex((s) =>
+        s.children.some(() => true)
+      );
+      if (sectionIndex === -1) return;
+      applyChange((d) => {
+        d.sections[sectionIndex].children.push({
+          type: "file",
+          content: "https://example.com/file.pdf",
+        });
+      });
+      setMenuAnchor(null);
+    }}
+  >
+    <AttachFileIcon fontSize="small" sx={{ mr: 1 }} /> Файл
+  </MenuItem>
+</Menu>
+
 
       <Snackbar
         open={autoSaveNotice}
         autoHideDuration={2000}
-        message={`✅ Сохранено в ${lastSavedAt}`}
+        message={`✅ Сохранено`}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       />
     </Box>
+
+    
   );
 }
