@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useLayoutEffect } from "react";
+import React, { useEffect, useState, useCallback, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api";
 import {
@@ -8,7 +8,6 @@ import {
   Typography,
   IconButton,
   Stack,
-  Snackbar,
   Menu,
   MenuItem,
   Paper,
@@ -28,6 +27,7 @@ import {
 
 import { MainContentLayout } from "../../components/layout/MainContentLayout";
 import { SubjectSidebar } from "../../components/lessons/SubjectSidebar";
+import { closestCenter } from "@dnd-kit/core";
 
 import {
   DndContext,
@@ -35,12 +35,13 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  pointerWithin,
+  DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
+  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence } from "framer-motion";
@@ -62,6 +63,8 @@ import DragIndicatorRoundedIcon from "@mui/icons-material/DragIndicatorRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 
 import type { Theme } from "@mui/material/styles";
+import SaveIcon from "@mui/icons-material/Save";
+
 
 
 
@@ -116,19 +119,34 @@ function useGlobalUndoRedo(handleUndo: () => void, handleRedo: () => void) {
 function SortableItem({
   id,
   children,
+  draggingSectionId,
 }: {
   id: string;
+  draggingSectionId: string | null;
   children: (opts: { listeners: any }) => React.ReactNode;
 }) {
   const { setNodeRef, transform, transition, attributes, listeners } = useSortable({ id });
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <motion.div
+      ref={setNodeRef}
+      layout // 👈 ключ для "умной" перестановки
+      {...attributes}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: transition || "transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)",
+      }}
+      animate={{
+        scale: draggingSectionId === id ? 0.97 : 1,
+        opacity: draggingSectionId === id ? 0.9 : 1,
+      }}
+      transition={{
+        layout: { type: "spring", stiffness: 300, damping: 26, mass: 0.8 },
+        default: { type: "spring", stiffness: 320, damping: 28 },
+      }}
+    >
       {children({ listeners })}
-    </div>
+    </motion.div>
   );
 }
 
@@ -156,10 +174,21 @@ const [selectedBlock, setSelectedBlock] = useState<{ secIdx: number; idx: number
 
 const [fabOpen, setFabOpen] = useState(false);
 
+const [activeId, setActiveId] = useState<string | null>(null);
+const [overId, setOverId] = useState<string | null>(null);
+
+const applyReorder = useCallback((updater: (draft: Section[]) => void) => {
+  setSections((prev) => {
+    const next = deepClone(prev);
+    updater(next);
+    return next;
+  });
+}, []);
 
 
 
-  const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+
+const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
   
 
   // === Загрузка урока ===
@@ -251,9 +280,42 @@ const [fabOpen, setFabOpen] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
+  const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
+
+
   // === UI ===
   if (loading) return <CircularProgress />;
   if (!lesson) return <Typography color="error">Ошибка: урок не найден</Typography>;
+
+ const handleDragStart = (event: DragStartEvent) => {
+  const id = String(event.active.id);
+  setActiveId(id);
+  setDraggingSectionId(id);
+
+  const index = parseInt(id.split("-")[1], 10);
+  applyChange((d) => {
+    if (d.sections[index]) d.sections[index].collapsed = true;
+  });
+};
+
+const handleDragOver = (event: any) => {
+  const { over } = event;
+  if (over) setOverId(String(over.id));
+};
+
+const handleDragEnd = (event: DragEndEvent) => {
+  const { active, over } = event;
+  setDraggingSectionId(null);
+  setActiveId(null);
+  setOverId(null);
+
+  if (!over || active.id === over.id) return;
+
+  const oldIndex = parseInt(String(active.id).split("-")[1], 10);
+  const newIndex = parseInt(String(over.id).split("-")[1], 10);
+
+setSections((prev) => arrayMove(prev, oldIndex, newIndex));
+};
 
   return (
     <Box
@@ -353,323 +415,548 @@ const [fabOpen, setFabOpen] = useState(false);
         </Stack>
 
         {/* === Секции === */}
-        <DndContext sensors={sensors} collisionDetection={pointerWithin}>
-          <SortableContext
-            items={sections.map((_, i) => `section-${i}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            <AnimatePresence>
-              {sections.map((section, secIdx) => (
-                <SortableItem key={`section-${secIdx}`} id={`section-${secIdx}`}>
-                  {({ listeners }) => (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <Box sx={{ mb: 5 }}>
-                        {/* === Заголовок секции === */}
-                      <Stack
-  direction="row"
-  alignItems="center"
-  justifyContent="space-between"
-  sx={{
-    mb: 1.5,
-    borderBottom: `3px solid ${section.color || theme.palette.primary.main}`,
-    pb: 0.5,
-  }}
+<DndContext
+  sensors={sensors}
+  collisionDetection={closestCenter}
+  onDragStart={handleDragStart}
+  onDragOver={handleDragOver}
+  onDragEnd={handleDragEnd}
 >
-  {/* Название секции */}
-  <Typography
-    variant="h6"
-    contentEditable
-    suppressContentEditableWarning
-    onBlur={(e: React.FocusEvent<HTMLHeadingElement>) =>
-      applyChange((d) => {
-        d.sections[secIdx].title = e.currentTarget.textContent || "";
-      })
-    }
-    sx={{
-      outline: "none",
-      fontWeight: 600,
-      cursor: "text",
-      flexGrow: 1,
-      mr: 2,
-    }}
+  <SortableContext
+    items={sections.map((_, i) => `section-${i}`)}
+    strategy={verticalListSortingStrategy}
   >
-    {section.title || "Без названия"}
-  </Typography>
+    <AnimatePresence>
+      {sections.map((section, secIdx) => (
+        <SortableItem
+          key={`section-${secIdx}`}
+          id={`section-${secIdx}`}
+          draggingSectionId={draggingSectionId}
+        >
+          {({ listeners }) => {
+            const isDraggingThis = draggingSectionId === `section-${secIdx}`;
+            const isOverThis = overId === `section-${secIdx}`;
 
-  {/* Инструменты секции */}
-  <Stack direction="row" alignItems="center" spacing={0.3}>
-    <Box
-      sx={{
-        width: 20,
-        height: 20,
-        borderRadius: "4px",
-        backgroundColor: section.color || theme.palette.primary.main,
-        border: `1px solid ${theme.palette.divider}`,
-        cursor: "pointer",
-      }}
-      onClick={(e: React.MouseEvent<HTMLDivElement>) => {
-        setColorAnchor(e.currentTarget);
-        setColorTargetIndex(secIdx);
-      }}
-    />
+            return (
+              <motion.div
+                layout
+                layoutId={`section-${secIdx}`}
+                transition={{
+                  type: "spring",
+                  stiffness: 420,
+                  damping: 32,
+                  mass: 0.8,
+                }}
+                animate={{
+                  scale: isDraggingThis ? 0.97 : 1,
+                  opacity: isDraggingThis ? 0.9 : 1,
+                  y: isOverThis ? -4 : 0,
+                  boxShadow: isOverThis
+                    ? theme.palette.mode === "dark"
+                      ? "0 6px 16px rgba(255,255,255,0.1)"
+                      : "0 6px 16px rgba(0,0,0,0.15)"
+                    : "none",
+                }}
+              >
+                {/* Карточка секции */}
+                <Box
+                  {...listeners}
+                  sx={(theme: Theme) => ({
+                    mb: 5,
+                    borderRadius: 2,
+                    backgroundColor: theme.palette.background.paper,
+                    transition: "all .3s cubic-bezier(0.25,1,0.5,1)",
+                    overflow: "hidden",
+                    p: 2,
+                  })}
+                >
+                  {/* Подсветка места перетаскивания */}
+                  <AnimatePresence>
+                    {isOverThis && draggingSectionId && (
+                      <motion.div
+                        key={`placeholder-${secIdx}`}
+                        initial={{ opacity: 0, scaleY: 0.4 }}
+                        animate={{
+                          opacity: 1,
+                          scaleY: 1,
+                          boxShadow: [
+                            "0 0 0 rgba(0,0,0,0)",
+                            theme.palette.mode === "dark"
+                              ? "0 0 10px rgba(255,255,255,0.25)"
+                              : "0 0 10px rgba(0,0,0,0.1)",
+                            "0 0 0 rgba(0,0,0,0)",
+                          ],
+                        }}
+                        exit={{ opacity: 0, scaleY: 0.4 }}
+                        transition={{
+                          repeat: isDraggingThis ? Infinity : 0,
+                          duration: 1.2,
+                          ease: "easeInOut",
+                        }}
+                        style={{
+                          height: 14,
+                          borderRadius: 6,
+                          backgroundColor:
+                            theme.palette.mode === "dark"
+                              ? "rgba(255,255,255,0.12)"
+                              : "rgba(0,0,0,0.08)",
+                          marginBottom: 12,
+                        }}
+                      />
+                    )}
+                  </AnimatePresence>
 
-    <IconButton
-      size="small"
-      onClick={() =>
-        applyChange((d) => {
-          d.sections[secIdx].collapsed = !d.sections[secIdx].collapsed;
-        })
-      }
-    >
-      {section.collapsed ? (
-        <ExpandMoreRoundedIcon fontSize="small" />
-      ) : (
-        <ExpandLessRoundedIcon fontSize="small" />
-      )}
-    </IconButton>
+                  {/* Шапка секции */}
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={(theme: Theme) => ({
+                      mb: 1.5,
+                      borderBottom: `3px solid ${
+                        section.color || theme.palette.primary.main
+                      }`,
+                      pb: 0.5,
+                      cursor: "grab",
+                      userSelect: isDraggingThis ? "none" : "text",
+                    })}
+                  >
+                    {/* Название секции */}
+                    <Typography
+                      variant="h6"
+                      contentEditable={!isDraggingThis}
+                      suppressContentEditableWarning
+                      onBlur={(e: React.FocusEvent<HTMLHeadingElement>) =>
+                        applyChange((d) => {
+                          d.sections[secIdx].title =
+                            e.currentTarget.textContent || "";
+                        })
+                      }
+                      sx={{
+                        outline: "none",
+                        fontWeight: 600,
+                        cursor: isDraggingThis ? "grabbing" : "text",
+                        flexGrow: 1,
+                        mr: 2,
+                      }}
+                    >
+                      {section.title || "Без названия"}
+                    </Typography>
 
-    <IconButton
-      size="small"
-      color="error"
-      onClick={() => {
-        if (confirm(`Удалить секцию "${section.title}"?`))
-          applyChange((d) => d.sections.splice(secIdx, 1));
-      }}
-    >
-      <DeleteOutlineRoundedIcon fontSize="small" />
-    </IconButton>
+                    {/* Кнопки секции */}
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={0.3}
+                      sx={{ opacity: isDraggingThis ? 0.6 : 1 }}
+                    >
+                      {/* Индикатор цвета / выбор цвета */}
+                      <Box
+                        sx={(theme: Theme) => ({
+                          width: 20,
+                          height: 20,
+                          borderRadius: "4px",
+                          backgroundColor:
+                            section.color || theme.palette.primary.main,
+                          border: `1px solid ${theme.palette.divider}`,
+                          cursor: "pointer",
+                        })}
+                        onClick={(e: React.MouseEvent<HTMLDivElement>) => {
+                          if (isDraggingThis) return;
+                          setColorAnchor(e.currentTarget);
+                          setColorTargetIndex(secIdx);
+                        }}
+                      />
 
-    <IconButton {...listeners} size="small">
-      <DragIndicatorRoundedIcon fontSize="small" />
-    </IconButton>
-  </Stack>
-</Stack>
+                      {/* Свернуть/развернуть */}
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          if (isDraggingThis) return;
+                          applyChange((d) => {
+                            d.sections[secIdx].collapsed =
+                              !d.sections[secIdx].collapsed;
+                          });
+                        }}
+                      >
+                        {section.collapsed ? (
+                          <ExpandMoreRoundedIcon fontSize="small" />
+                        ) : (
+                          <ExpandLessRoundedIcon fontSize="small" />
+                        )}
+                      </IconButton>
 
-                        {/* === Контент секции === */}
-                        {!section.collapsed && (
-                          <Box sx={{ pl: 1 }}>
-                            {section.children.map((b, idx) => (
-                              <Box
-                                key={idx}
+                      {/* Вверх */}
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          if (isDraggingThis) return;
+                          applyChange((d) => {
+                            if (secIdx > 0) {
+                              const [moved] = d.sections.splice(secIdx, 1);
+                              d.sections.splice(secIdx - 1, 0, moved);
+                            }
+                          });
+                        }}
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "12px",
+                          color: theme.palette.text.primary,
+                          "&:hover": {
+                            backgroundColor: theme.palette.action.hover,
+                          },
+                        }}
+                      >
+                        <ArrowUpwardRoundedIcon fontSize="small" />
+                      </IconButton>
+
+                      {/* Вниз */}
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          if (isDraggingThis) return;
+                          applyChange((d) => {
+                            if (secIdx < d.sections.length - 1) {
+                              const [moved] = d.sections.splice(secIdx, 1);
+                              d.sections.splice(secIdx + 1, 0, moved);
+                            }
+                          });
+                        }}
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "12px",
+                          color: theme.palette.text.primary,
+                          "&:hover": {
+                            backgroundColor: theme.palette.action.hover,
+                          },
+                        }}
+                      >
+                        <ArrowDownwardRoundedIcon fontSize="small" />
+                      </IconButton>
+
+                      {/* Удалить секцию */}
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => {
+                          if (isDraggingThis) return;
+                          if (
+                            confirm(`Удалить секцию "${section.title}"?`)
+                          ) {
+                            applyChange((d) =>
+                              d.sections.splice(secIdx, 1)
+                            );
+                          }
+                        }}
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "12px",
+                          "&:hover": {
+                            backgroundColor:
+                              theme.palette.mode === "dark"
+                                ? "rgba(255,0,0,0.08)"
+                                : "rgba(255,0,0,0.06)",
+                          },
+                        }}
+                      >
+                        <DeleteOutlineRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Stack>
+
+                  {/* Контент секции */}
+                  <AnimatePresence initial={false}>
+                    {!section.collapsed && (
+                      <motion.div
+                        key={`section-content-${secIdx}`}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 220,
+                          damping: 30,
+                        }}
+                        style={{ overflow: "hidden" }}
+                      >
+                        {/* Блоки внутри секции */}
+                        <Box sx={{ pl: 1, pb: 1 }}>
+                          {section.children.map((b, idx) => (
+                            <Box
+                              key={idx}
+                              sx={{
+                                position: "relative",
+                                mb: 2,
+                                p: 2,
+                                borderRadius: 2,
+                                backgroundColor:
+                                  theme.palette.background.paper,
+                                "&:hover .block-tools": {
+                                  opacity: 1,
+                                  transform: "scale(1)",
+                                },
+                              }}
+                            >
+                              {b.type === "text" && (
+                                <div
+                                  dangerouslySetInnerHTML={{
+                                    __html: b.content,
+                                  }}
+                                />
+                              )}
+
+                              {b.type === "image" && (
+                                <img
+                                  src={b.content}
+                                  alt=""
+                                  style={{
+                                    maxWidth: "100%",
+                                    borderRadius: 8,
+                                  }}
+                                />
+                              )}
+
+                              {/* кнопка ⋯ для блока */}
+                              <IconButton
+                                size="small"
+                                className="block-tools"
                                 sx={{
-                                  position: "relative",
-                                  mb: 2,
-                                  p: 2,
-                                  borderRadius: 2,
-                                  backgroundColor: theme.palette.background.paper,
-                                  "&:hover .block-tools": {
-                                    opacity: 1,
-                                    transform: "scale(1)",
-                                  },
+                                  position: "absolute",
+                                  top: 6,
+                                  right: 6,
+                                  opacity: blockMenuAnchor ? 1 : 0,
+                                  transform: "scale(0.95)",
+                                  transition: "all 0.2s ease",
+                                }}
+                                onClick={(
+                                  e: React.MouseEvent<HTMLButtonElement>
+                                ) => {
+                                  e.stopPropagation();
+                                  setBlockMenuAnchor(e.currentTarget);
+                                  setSelectedBlock({ secIdx, idx });
                                 }}
                               >
-                                {b.type === "text" && (
-                                  <div
-                                    dangerouslySetInnerHTML={{ __html: b.content }}
-                                  />
-                                )}
-                                {b.type === "image" && (
-                                  <img
-                                    src={b.content}
-                                    alt=""
-                                    style={{ maxWidth: "100%", borderRadius: 8 }}
-                                  />
-                                )}
-                                {/* инструменты блока */}
-                                <IconButton
-                                  size="small"
-                                  className="block-tools"
-                                  sx={{
-  position: "absolute",
-  top: 6,
-  right: 6,
-  opacity: blockMenuAnchor ? 1 : 0,
-  transform: "scale(0.95)",
-  transition: "all 0.2s ease",
-}}
-                                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                    e.stopPropagation();
-                                    setBlockMenuAnchor(e.currentTarget);
-                                    setSelectedBlock({ secIdx, idx });
+                                <MoreVertIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          ))}
+
+                          {/* Плавающая кнопка + варианты (FAB) */}
+                          <Box
+                            sx={{
+                              position: "relative",
+                              display: "flex",
+                              justifyContent: "center",
+                              alignItems: "center",
+                              mt: 4,
+                            }}
+                          >
+                            {/* Список вариантов */}
+                            <AnimatePresence>
+                              {fabOpen && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 30 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: 30 }}
+                                  transition={{ duration: 0.25 }}
+                                  style={{
+                                    position: "absolute",
+                                    bottom: 76,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: "12px",
+                                    zIndex: 20,
                                   }}
                                 >
-                                  <MoreVertIcon fontSize="small" />
-                                </IconButton>
-                              </Box>
-                            ))}
+                                  {[
+                                    {
+                                      icon: <TextFieldsIcon />,
+                                      label: "Текст",
+                                      type: "text" as const,
+                                    },
+                                    {
+                                      icon: <ImageIcon />,
+                                      label: "Изображение",
+                                      type: "image" as const,
+                                    },
+                                    {
+                                      icon: <MovieIcon />,
+                                      label: "Видео",
+                                      type: "video" as const,
+                                    },
+                                    {
+                                      icon: <AttachFileIcon />,
+                                      label: "Файл",
+                                      type: "file" as const,
+                                    },
+                                  ].map((item, i) => (
+                                    <motion.div
+                                      key={i}
+                                      initial={{
+                                        opacity: 0,
+                                        scale: 0.9,
+                                        y: 10,
+                                      }}
+                                      animate={{
+                                        opacity: 1,
+                                        scale: 1,
+                                        y: 0,
+                                      }}
+                                      exit={{
+                                        opacity: 0,
+                                        scale: 0.8,
+                                        y: 10,
+                                      }}
+                                      transition={{
+                                        delay: i * 0.05,
+                                      }}
+                                    >
+                                      <Button
+                                        variant="contained"
+                                        startIcon={item.icon}
+                                        onClick={() => {
+                                          applyChange((d) => {
+                                            const newBlock: Block =
+                                              item.type === "text"
+                                                ? {
+                                                    type: "text",
+                                                    content:
+                                                      "<p>Новый текст</p>",
+                                                  }
+                                                : item.type === "image"
+                                                ? {
+                                                    type: "image",
+                                                    content:
+                                                      "https://placehold.co/600x400",
+                                                  }
+                                                : item.type === "video"
+                                                ? {
+                                                    type: "video",
+                                                    content:
+                                                      "https://www.youtube.com/embed/dQw4w9WgXcQ",
+                                                  }
+                                                : {
+                                                    type: "file",
+                                                    content:
+                                                      "https://example.com/file.pdf",
+                                                  };
+                                            d.sections[
+                                              secIdx
+                                            ].children.push(newBlock);
+                                          });
+                                          setFabOpen(false);
+                                        }}
+                                        sx={(theme: Theme) => ({
+                                          borderRadius: "9999px",
+                                          textTransform: "none",
+                                          fontWeight: 600,
+                                          fontSize: "0.95rem",
+                                          px: 3,
+                                          py: 1.2,
+                                          minWidth: 180,
+                                          justifyContent: "center",
+                                          alignItems: "center",
+                                          gap: 1.2,
+                                          boxShadow:
+                                            theme.palette.mode === "dark"
+                                              ? "0 3px 8px rgba(0,0,0,0.5)"
+                                              : "0 3px 8px rgba(0,0,0,0.15)",
+                                          backgroundColor:
+                                            theme.palette.mode === "dark"
+                                              ? "#3b3b3b"
+                                              : "#DCE9F5",
+                                          color:
+                                            theme.palette.text.primary,
+                                          "&:hover": {
+                                            backgroundColor:
+                                              theme.palette.mode ===
+                                              "dark"
+                                                ? "#4a4a4a"
+                                                : "#cdddeb",
+                                          },
+                                          "&:active": {
+                                            backgroundColor:
+                                              theme.palette.primary.main,
+                                            color: "#fff",
+                                          },
+                                        })}
+                                      >
+                                        {item.label}
+                                      </Button>
+                                      
+                                    </motion.div>
+                                  ))}
+                                  
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
 
-                            {/* + контент */}
-                           <Box
-  sx={{
-    position: "relative",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    mt: 4,
-  }}
->
-  {/* FAB options */}
-  <AnimatePresence>
-    {fabOpen && (
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 30 }}
-        transition={{ duration: 0.25 }}
-        style={{
-          position: "absolute",
-          bottom: 76,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "12px",
-          zIndex: 20,
-        }}
-      >
-        {[
-          { icon: <TextFieldsIcon />, label: "Текст", type: "text" as const },
-          { icon: <ImageIcon />, label: "Изображение", type: "image" as const },
-          { icon: <MovieIcon />, label: "Видео", type: "video" as const },
-          { icon: <AttachFileIcon />, label: "Файл", type: "file" as const },
-        ].map((item, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 10 }}
-            transition={{ delay: i * 0.05 }}
-          >
-            <Button
-              variant="contained"
-              startIcon={item.icon}
-              onClick={() => {
-                const sectionIndex = sections.findIndex((s) =>
-                  s.children.some(() => true)
-                );
-                if (sectionIndex === -1) return;
-                applyChange((d) => {
-                  const newBlock: Block =
-                    item.type === "text"
-                      ? { type: "text", content: "<p>Новый текст</p>" }
-                      : item.type === "image"
-                      ? {
-                          type: "image",
-                          content: "https://placehold.co/600x400",
-                        }
-                      : item.type === "video"
-                      ? {
-                          type: "video",
-                          content:
-                            "https://www.youtube.com/embed/dQw4w9WgXcQ",
-                        }
-                      : { type: "file", content: "https://example.com/file.pdf" };
-                  d.sections[sectionIndex].children.push(newBlock);
-                });
-                setFabOpen(false);
-              }}
-              sx={(theme: Theme) => ({
-                borderRadius: "9999px",
-                textTransform: "none",
-                fontWeight: 600,
-                fontSize: "0.95rem",
-                px: 3,
-                py: 1.2,
-                minWidth: 180,
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 1.2,
-                boxShadow:
-                  theme.palette.mode === "dark"
-                    ? "0 3px 8px rgba(0,0,0,0.5)"
-                    : "0 3px 8px rgba(0,0,0,0.15)",
-                backgroundColor:
-                  theme.palette.mode === "dark"
-                    ? "#3b3b3b"
-                    : "#DCE9F5",
-                color: theme.palette.text.primary,
-                "&:hover": {
-                  backgroundColor:
-                    theme.palette.mode === "dark"
-                      ? "#4a4a4a"
-                      : "#cdddeb",
-                },
-                "&:active": {
-                  backgroundColor: theme.palette.primary.main,
-                  color: "#fff",
-                },
-              })}
-            >
-              {item.label}
-            </Button>
-          </motion.div>
-        ))}
-      </motion.div>
-    )}
-  </AnimatePresence>
-
-  {/* Главная кнопка FAB */}
-  <IconButton
-    onClick={() => setFabOpen(!fabOpen)}
-    sx={(theme: Theme) => ({
-      width: 68,
-      height: 68,
-      borderRadius: "50%",
-      backgroundColor: fabOpen
-        ? theme.palette.primary.main
-        : theme.palette.mode === "dark"
-        ? "#3b3b3b"
-        : "#DCE9F5",
-      color: fabOpen
-        ? "#fff"
-        : theme.palette.text.primary,
-      boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
-      "&:hover": {
-        backgroundColor: fabOpen
-          ? theme.palette.primary.dark
-          : theme.palette.mode === "dark"
-          ? "#4a4a4a"
-          : "#cdddeb",
-        transform: "scale(1.05)",
-      },
-      transition: "all 0.25s ease",
-      zIndex: 25,
-    })}
-  >
-    <motion.div
-      animate={{ rotate: fabOpen ? 45 : 0 }}
-      transition={{ duration: 0.25 }}
-    >
-      <AddRoundedIcon fontSize="large" />
-    </motion.div>
-  </IconButton>
-</Box>
+                            {/* Главная круглая кнопка + */}
+                            <IconButton
+                              onClick={() => setFabOpen(!fabOpen)}
+                              sx={(theme: Theme) => ({
+                                width: 68,
+                                height: 68,
+                                borderRadius: "50%",
+                                backgroundColor: fabOpen
+                                  ? theme.palette.primary.main
+                                  : theme.palette.mode === "dark"
+                                  ? "#3b3b3b"
+                                  : "#DCE9F5",
+                                color: fabOpen
+                                  ? "#fff"
+                                  : theme.palette.text.primary,
+                                boxShadow:
+                                  "0 6px 20px rgba(0,0,0,0.25)",
+                                "&:hover": {
+                                  backgroundColor: fabOpen
+                                    ? theme.palette.primary.dark
+                                    : theme.palette.mode === "dark"
+                                    ? "#4a4a4a"
+                                    : "#cdddeb",
+                                  transform: "scale(1.05)",
+                                },
+                                transition: "all 0.25s ease",
+                                zIndex: 25,
+                              })}
+                            >
+                              <motion.div
+                                animate={{
+                                  rotate: fabOpen ? 45 : 0,
+                                }}
+                                transition={{ duration: 0.25 }}
+                              >
+                                <AddRoundedIcon fontSize="large" />
+                              </motion.div>
+                            </IconButton>
                           </Box>
-                        )}
-                      </Box>
-                    </motion.div>
-                  )}
-                </SortableItem>
-              ))}
-            </AnimatePresence>
-          </SortableContext>
-        </DndContext>
-      </MainContentLayout>
+                        </Box>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </Box>
+              </motion.div>
+            );
+          }}
+        </SortableItem>
+      ))}
+    </AnimatePresence>
+  </SortableContext>
+</DndContext>
+</MainContentLayout>
 
-      <MuiMenu
+{/* === Меню блока (⋯) === */}
+<MuiMenu
   anchorEl={blockMenuAnchor}
   open={Boolean(blockMenuAnchor)}
   onClose={() => setBlockMenuAnchor(null)}
   anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
   transformOrigin={{ vertical: "top", horizontal: "center" }}
-  TransitionProps={{
-    timeout: 160,
-  }}
-  // кастомим сам "лист" меню
+  TransitionProps={{ timeout: 160 }}
   PaperProps={{
     sx: {
       mt: 0.5,
@@ -683,18 +970,12 @@ const [fabOpen, setFabOpen] = useState(false);
           : "0 12px 32px rgba(0,0,0,0.12)",
       display: "flex",
       flexDirection: "column",
-      alignItems: "stretch",
+      alignItems: "center",
       gap: 0.5,
       minWidth: 48,
-      animation: "fadeScaleIn 0.16s ease-out",
-      "@keyframes fadeScaleIn": {
-        from: { opacity: 0, transform: "scale(0.9)" },
-        to: { opacity: 1, transform: "scale(1)" },
-      },
     },
   }}
   MenuListProps={{
-    // убираем дефолтный горизонтальный padding списка меню
     sx: {
       p: 0,
       display: "flex",
@@ -704,29 +985,24 @@ const [fabOpen, setFabOpen] = useState(false);
     },
   }}
 >
-  {/* Изменить */}
+  {/* === Действия меню блока === */}
   <IconButton
     size="small"
     onClick={() => {
       if (!selectedBlock) return;
-      // TODO: твой модал/редактор блока
       alert("Изменение контента пока не реализовано");
-      // 👇 не закрываем меню, чтобы можно было вызвать ещё действия
     }}
     sx={{
       width: 40,
       height: 40,
       borderRadius: "12px",
       color: theme.palette.text.primary,
-      "&:hover": {
-        backgroundColor: theme.palette.action.hover,
-      },
+      "&:hover": { backgroundColor: theme.palette.action.hover },
     }}
   >
     <EditOutlinedIcon fontSize="small" />
   </IconButton>
 
-  {/* Вверх */}
   <IconButton
     size="small"
     onClick={() => {
@@ -738,22 +1014,18 @@ const [fabOpen, setFabOpen] = useState(false);
           d.sections[secIdx].children.splice(idx - 1, 0, moved);
         }
       });
-      // меню остаётся открытым
     }}
     sx={{
       width: 40,
       height: 40,
       borderRadius: "12px",
       color: theme.palette.text.primary,
-      "&:hover": {
-        backgroundColor: theme.palette.action.hover,
-      },
+      "&:hover": { backgroundColor: theme.palette.action.hover },
     }}
   >
     <ArrowUpwardRoundedIcon fontSize="small" />
   </IconButton>
 
-  {/* Вниз */}
   <IconButton
     size="small"
     onClick={() => {
@@ -766,31 +1038,24 @@ const [fabOpen, setFabOpen] = useState(false);
           d.sections[secIdx].children.splice(idx + 1, 0, moved);
         }
       });
-      // меню остаётся открытым
     }}
     sx={{
       width: 40,
       height: 40,
       borderRadius: "12px",
       color: theme.palette.text.primary,
-      "&:hover": {
-        backgroundColor: theme.palette.action.hover,
-      },
+      "&:hover": { backgroundColor: theme.palette.action.hover },
     }}
   >
     <ArrowDownwardRoundedIcon fontSize="small" />
   </IconButton>
 
-  {/* Удалить */}
   <IconButton
     size="small"
     onClick={() => {
       if (!selectedBlock) return;
       const { secIdx, idx } = selectedBlock;
-      applyChange((d) => {
-        d.sections[secIdx].children.splice(idx, 1);
-      });
-      // после удаления закрываем меню логично
+      applyChange((d) => d.sections[secIdx].children.splice(idx, 1));
       setBlockMenuAnchor(null);
     }}
     sx={{
@@ -810,79 +1075,70 @@ const [fabOpen, setFabOpen] = useState(false);
   </IconButton>
 </MuiMenu>
 
-
-      {/* === Нижняя панель действий === */}
-      <Box
-        sx={{
-          position: "fixed",
-          bottom: 16,
-          left: "50%",
-          transform: "translateX(-50%)",
-          display: "flex",
-          alignItems: "center",
-          gap: 1.5,
-        }}
-      >
-        <Paper
-          elevation={5}
-          sx={{
-            borderRadius: "999px",
-            px: 2.5,
-            py: 1.2,
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            backdropFilter: "blur(10px)",
-            backgroundColor: "rgba(255,255,255,0.7)",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-          }}
-        >
-          <Button onClick={handleUndo} disabled={historyIndex <= 0}>
-            ↩ Undo
-          </Button>
-          <Button onClick={handleRedo} disabled={historyIndex >= history.length - 1}>
-            ↪ Redo
-          </Button>
-          <Button variant="outlined" onClick={() => navigate(-1)}>
-            Отмена
-          </Button>
-          <Button variant="contained" onClick={handleSave}>
-            Сохранить
-          </Button>
-         <Button
-  variant="contained"
-  startIcon={<AddRoundedIcon />}
-  onClick={() =>
-    applyChange((d) =>
-      d.sections.push({
-        type: "section",
-        title: "Новая секция",
-        children: [],
-      })
-    )
-  }
+{/* === Нижняя плавающая панель действий === */}
+<Box
   sx={{
-    borderRadius: "999px",
-    textTransform: "none",
-    fontWeight: 500,
-    px: 2.5,
-    py: 1.2,
-    backgroundColor: theme.palette.primary.main,
-    color: "#fff",
-    "&:hover": {
-      backgroundColor: theme.palette.primary.dark,
-      transform: "scale(1.03)",
-      transition: "all 0.2s ease",
-    },
+    position: "fixed",
+    bottom: 16,
+    left: "50%",
+    transform: "translateX(-50%)",
+    display: "flex",
+    alignItems: "center",
+    zIndex: 100,
   }}
 >
-  Секция
-</Button>
-        </Paper>
-      </Box>
+  <Paper
+    elevation={5}
+    sx={(theme: Theme) => ({
+      borderRadius: "999px",
+      px: 2.5,
+      py: 1,
+      display: "flex",
+      alignItems: "center",
+      gap: 1.2,
+      backdropFilter: "blur(16px)",
+      backgroundColor:
+        theme.palette.mode === "dark"
+          ? "rgba(30,30,30,0.75)"
+          : "rgba(255,255,255,0.75)",
+      border: `1px solid ${
+        theme.palette.mode === "dark"
+          ? "rgba(255,255,255,0.08)"
+          : "rgba(0,0,0,0.08)"
+      }`,
+    })}
+  >
+    <IconButton onClick={handleUndo} disabled={historyIndex <= 0}>
+      <ArrowUpwardRoundedIcon sx={{ transform: "rotate(-90deg)" }} />
+    </IconButton>
+    <IconButton
+      onClick={handleRedo}
+      disabled={historyIndex >= history.length - 1}
+    >
+      <ArrowUpwardRoundedIcon sx={{ transform: "rotate(90deg)" }} />
+    </IconButton>
+    <Button onClick={handleSave} startIcon={<SaveIcon />}>
+      Сохранить
+    </Button>
+    <Button
+      startIcon={<AddRoundedIcon />}
+      onClick={() =>
+        applyChange((d) =>
+          d.sections.push({
+            type: "section",
+            title: "Новая секция",
+            children: [],
+          })
+        )
+      }
+    >
+      Секция
+    </Button>
+  </Paper>
+</Box>
 
-      {/* === Меню выбора типа контента === */}
-     <Menu
+{/* === Меню выбора типа контента === */}
+<Menu
   anchorEl={menuAnchor}
   open={Boolean(menuAnchor)}
   onClose={() => setMenuAnchor(null)}
@@ -893,12 +1149,12 @@ const [fabOpen, setFabOpen] = useState(false);
         s.children.some(() => true)
       );
       if (sectionIndex === -1) return;
-      applyChange((d) => {
+      applyChange((d) =>
         d.sections[sectionIndex].children.push({
           type: "text",
           content: "<p>Новый текст</p>",
-        });
-      });
+        })
+      );
       setMenuAnchor(null);
     }}
   >
@@ -911,12 +1167,12 @@ const [fabOpen, setFabOpen] = useState(false);
         s.children.some(() => true)
       );
       if (sectionIndex === -1) return;
-      applyChange((d) => {
+      applyChange((d) =>
         d.sections[sectionIndex].children.push({
           type: "image",
           content: "https://placehold.co/600x400",
-        });
-      });
+        })
+      );
       setMenuAnchor(null);
     }}
   >
@@ -929,12 +1185,12 @@ const [fabOpen, setFabOpen] = useState(false);
         s.children.some(() => true)
       );
       if (sectionIndex === -1) return;
-      applyChange((d) => {
+      applyChange((d) =>
         d.sections[sectionIndex].children.push({
           type: "video",
           content: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-        });
-      });
+        })
+      );
       setMenuAnchor(null);
     }}
   >
@@ -947,28 +1203,17 @@ const [fabOpen, setFabOpen] = useState(false);
         s.children.some(() => true)
       );
       if (sectionIndex === -1) return;
-      applyChange((d) => {
+      applyChange((d) =>
         d.sections[sectionIndex].children.push({
           type: "file",
           content: "https://example.com/file.pdf",
-        });
-      });
+        })
+      );
       setMenuAnchor(null);
     }}
   >
     <AttachFileIcon fontSize="small" sx={{ mr: 1 }} /> Файл
   </MenuItem>
 </Menu>
-
-
-      <Snackbar
-        open={autoSaveNotice}
-        autoHideDuration={2000}
-        message={`✅ Сохранено`}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      />
-    </Box>
-
-    
-  );
-}
+</Box>
+)};
