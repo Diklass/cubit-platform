@@ -189,6 +189,25 @@ const applyReorder = useCallback((updater: (draft: Section[]) => void) => {
 
 
 const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+
+// === Загрузка модулей для боковой панели ===
+const [modules, setModules] = useState<any[]>([]);
+
+const loadModules = async () => {
+  const subjectId = lesson?.module?.subject?.id;
+  if (!subjectId) return;
+  try {
+    const { data } = await api.get(`/subjects/${subjectId}`);
+    setModules(data.tree || []);
+  } catch (err) {
+    console.error("Ошибка загрузки модулей:", err);
+  }
+};
+
+// подгружаем модули, когда урок загружен
+useEffect(() => {
+  if (lesson?.module?.subject?.id) loadModules();
+}, [lesson]);
   
 
   // === Загрузка урока ===
@@ -330,12 +349,13 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
       {lesson?.module?.subject?.id && (
         <SubjectSidebar
           subjectId={lesson.module!.subject!.id}
-          modules={[]}
+          modules={modules}
           currentLessonId={id}
           currentRole="TEACHER"
           onSelectLesson={(lessonId) =>
             navigate(`/lessons/${lesson.module!.subject!.id}?lessonId=${lessonId}`)
           }
+          onDataChange={loadModules}
         />
       )}
 

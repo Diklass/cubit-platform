@@ -85,31 +85,29 @@ export const LessonContent: React.FC<Props> = ({ lessonId }) => {
   };
 
    return (
-    <Box sx={{ p: "20px" }}>
+    <Box sx={{ p: "0px" }}>
       {/* УДАЛЯЕМ старую кнопку над карточкой */}
 
        <Box
          id="lesson-content"
-         sx={{
-           p: "20px",
-           borderRadius: "16px",
-           backgroundColor: theme.palette.background.paper,
-           color: theme.palette.text.primary,
-           boxShadow: theme.shadows[2],
-           transition: "background-color 0.3s, color 0.3s",
-           position: "relative",
+          sx={{
 
-           // 🔽 любые картинки внутри контента — без тени
-           "& img": {
-             boxShadow: "none !important",
-             borderRadius: 12,
-             maxWidth: "100%",
-             height: "auto",
-             display: "block",
-             margin: "12px 0",
-           },
-         }}
-       >
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    color: theme.palette.text.primary,
+    boxShadow: "none",
+    transition: "color 0.3s",
+    position: "relative",
+
+    "& img": {
+      borderRadius: 12,
+      maxWidth: "100%",
+      height: "auto",
+      display: "block",
+      margin: "12px 0",
+    },
+  }}
+>
         {/* ✅ Кнопка в правом верхнем углу */}
         <Button
           variant="contained"
@@ -117,8 +115,8 @@ export const LessonContent: React.FC<Props> = ({ lessonId }) => {
           onClick={exportToPDF}
           sx={{
             position: "absolute",
-            top: 12,
-            right: 12,
+            top: 5,
+            right: 5,
             borderRadius: "12px",
             textTransform: "none",
             boxShadow: theme.shadows[2],
