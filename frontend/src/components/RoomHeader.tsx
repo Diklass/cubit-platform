@@ -1,8 +1,39 @@
-// src/components/RoomHeader.tsx
 import React from "react";
-import fullscreenIcon from "../assets/icons/fullscreen.svg";
-import editIcon from "../assets/icons/setting.svg";
-import chatIcon from "../assets/icons/chat.svg";
+import {
+  Box,
+  Typography,
+  IconButton,
+  Tooltip,
+  Button,
+  useTheme,
+} from "@mui/material";
+import {
+  Fullscreen,
+  ChatBubbleOutline,
+  SettingsOutlined,
+} from "@mui/icons-material";
+
+// Функция для вычисления яркости цвета
+function getLuminance(hex: string): number {
+  const rgb = hex
+    .replace("#", "")
+    .match(/.{1,2}/g)
+    ?.map((x) => parseInt(x, 16) / 255) || [0, 0, 0];
+  const [r, g, b] = rgb.map((v) =>
+    v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+  );
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// Функция для определения оптимального контрастного цвета
+function getContrastColor(bgColor: string, light = "#FFFFFF", dark = "#1C1B1F") {
+  try {
+    const lum = getLuminance(bgColor);
+    return lum > 0.45 ? dark : light;
+  } catch {
+    return light;
+  }
+}
 
 interface RoomHeaderProps {
   name: string;
@@ -13,7 +44,6 @@ interface RoomHeaderProps {
   onFullscreen: () => void;
   onChat: () => void;
   compact?: boolean;
-  /** ✅ новый флаг — можно ли редактировать (только для учителей/админов) */
   isTeacher?: boolean;
 }
 
@@ -28,120 +58,238 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
   compact = false,
   isTeacher = false,
 }) => {
+  const theme = useTheme();
+
+  // 🎨 Динамически вычисляем контрастный цвет (на основе фона)
+  const iconColor = getContrastColor(bgColor || theme.palette.primary.main);
+  const textColor = iconColor;
+
+  // === COMPACT HEADER ===
   if (compact) {
-    // --- УЗКАЯ ПОЛОСА (для режима чата) ---
     return (
-      <div
-        className="relative flex-shrink-0 h-[56px] rounded-lg mx-[20px] mt-[10px] overflow-hidden border border-gray-200"
-        style={{
-          backgroundColor: bgColor || "var(--md-sys-color-surface)",
+      <Box
+        sx={{
+          position: "relative",
+          flexShrink: 0,
+          height: 56,
+          borderRadius: "16px",
+          mx: { xs: 2, md: 3 },
+          mt: 1,
+          overflow: "hidden",
+          border: `1px solid ${theme.palette.divider}`,
+          backgroundColor: bgColor || theme.palette.primary.main,
+          backgroundImage: bgImagePreview ? `url(${bgImagePreview})` : undefined,
           backgroundSize: "cover",
           backgroundPosition: "center",
+          boxShadow:
+            theme.palette.mode === "dark"
+              ? "0 2px 8px rgba(0,0,0,0.6)"
+              : "0 2px 8px rgba(0,0,0,0.08)",
         }}
       >
-        <div className="absolute inset-0 bg-primary-container/60" />
+        <Box
+          sx={{
+            position: "relative",
+            zIndex: 1,
+            height: "100%",
+            px: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Typography
+            variant="subtitle1"
+            noWrap
+            sx={{
+              fontWeight: 600,
+              color: textColor,
+              pr: 1,
+              maxWidth: "60%",
+            }}
+          >
+            {name}
+          </Typography>
 
-        <div className="relative z-[1] h-full px-[12px] flex items-center justify-between">
-          <div className="min-w-0 pr-2">
-            <h1 className="text-white text-[18px] font-semibold truncate">{name}</h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Чат */}
-            <button
-              onClick={onChat}
-              aria-label="Чат / К материалам"
-              className="p-2 rounded-full bg-white/90 hover:bg-white transition shadow"
-              title="Чат / К материалам"
-            >
-              <img src={chatIcon} alt="" className="w-4 h-4" />
-            </button>
-
-            {/* Полный экран */}
-            <button
-              onClick={onFullscreen}
-              aria-label="На весь экран"
-              className="p-2 rounded-full bg-white/90 hover:bg-white transition shadow"
-              title="На весь экран"
-            >
-              <img src={fullscreenIcon} alt="" className="w-4 h-4" />
-            </button>
-
-            {/* ⚙ Настройки — только если isTeacher === true */}
-            {isTeacher && (
-              <button
-                onClick={onEdit}
-                aria-label="Настройки"
-                className="p-2 rounded-full bg-white/90 hover:bg-white transition shadow"
-                title="Настройки"
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Tooltip title="Чат / К материалам">
+              <IconButton
+                size="small"
+                onClick={onChat}
+                sx={{
+                  bgcolor: "rgba(255,255,255,0.25)",
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
+                  boxShadow: 1,
+                }}
               >
-                <img src={editIcon} alt="" className="w-4 h-4" />
-              </button>
+                <ChatBubbleOutline sx={{ color: iconColor, fontSize: 20 }} />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="На весь экран">
+              <IconButton
+                size="small"
+                onClick={onFullscreen}
+                sx={{
+                  bgcolor: "rgba(255,255,255,0.25)",
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
+                  boxShadow: 1,
+                }}
+              >
+                <Fullscreen sx={{ color: iconColor, fontSize: 20 }} />
+              </IconButton>
+            </Tooltip>
+
+            {isTeacher && (
+              <Tooltip title="Настройки">
+                <IconButton
+                  size="small"
+                  onClick={onEdit}
+                  sx={{
+                    bgcolor: "rgba(255,255,255,0.25)",
+                    "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
+                    boxShadow: 1,
+                  }}
+                >
+                  <SettingsOutlined sx={{ color: iconColor, fontSize: 20 }} />
+                </IconButton>
+              </Tooltip>
             )}
-          </div>
-        </div>
-      </div>
+          </Box>
+        </Box>
+      </Box>
     );
   }
 
-  // --- РАЗВЁРНУТАЯ ШАПКА ---
+  // === EXPANDED HEADER ===
   return (
-    <div
-      className="relative flex-shrink-0 h-[200px] rounded-lg mx-[20px] mt-[10px] overflow-hidden"
-      style={{
-        backgroundColor: bgColor,
+    <Box
+      sx={{
+        position: "relative",
+        flexShrink: 0,
+        height: { xs: 160, md: 200 },
+        borderRadius: "20px",
+        mx: { xs: 2, md: 3 },
+        mt: 1,
+        overflow: "hidden",
+        backgroundColor: bgColor || theme.palette.primary.main,
         backgroundImage: bgImagePreview ? `url(${bgImagePreview})` : undefined,
         backgroundSize: "cover",
         backgroundPosition: "center",
+        boxShadow:
+          theme.palette.mode === "dark"
+            ? "0 4px 12px rgba(0,0,0,0.7)"
+            : "0 4px 12px rgba(0,0,0,0.15)",
       }}
     >
-      <div className="absolute inset-0 bg-primary-container/80"></div>
-
       {/* Название комнаты */}
-      <h1 className="relative text-white text-[32px] font-bold pl-[20px] pt-[20px]">
+      <Typography
+        variant="h4"
+        sx={{
+          position: "relative",
+          color: textColor,
+          fontWeight: 700,
+          pl: { xs: 2, md: 3 },
+          pt: { xs: 2, md: 3 },
+        }}
+      >
         {name}
-      </h1>
+      </Typography>
 
-      {/* Код курса + кнопка фуллскрина */}
-      <div className="relative flex items-center gap-2 pl-[20px] mt-2">
-        <span className="text-white text-[18px] font-medium">Код курса: {code}</span>
-        <button
-          onClick={onFullscreen}
-          className="p-2 rounded-full bg-white/20 hover:bg-white/40 transition"
-          aria-label="На весь экран"
-          title="На весь экран"
+      {/* Код курса */}
+      <Box
+        sx={{
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          pl: { xs: 2, md: 3 },
+          mt: 1,
+        }}
+      >
+        <Typography
+          variant="subtitle1"
+          sx={{
+            color: textColor,
+            fontWeight: 500,
+          }}
         >
-          <img src={fullscreenIcon} alt="" className="w-5 h-5" />
-        </button>
-      </div>
+          Код курса: {code}
+        </Typography>
 
-      {/* ⚙ Настройки — только для учителей */}
-      {isTeacher && (
-        <div className="absolute top-[10px] right-[10px] flex items-center gap-2">
-          <button
-            onClick={onEdit}
-            aria-label="Редактировать"
-            className="p-2 bg-white/90 rounded-full shadow hover:bg-white transition"
-            title="Редактировать"
+        <Tooltip title="На весь экран">
+          <IconButton
+            size="small"
+            onClick={onFullscreen}
+            sx={{
+              bgcolor: "rgba(255,255,255,0.25)",
+              "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
+            }}
           >
-            <img src={editIcon} alt="" className="w-5 h-5" />
-          </button>
-        </div>
+            <Fullscreen sx={{ color: iconColor, fontSize: 22 }} />
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      {/* Настройки */}
+      {isTeacher && (
+        <Box
+          sx={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+          }}
+        >
+          <Tooltip title="Настройки комнаты">
+            <IconButton
+              onClick={onEdit}
+              sx={{
+                bgcolor: "rgba(255,255,255,0.25)",
+                "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
+                boxShadow: 2,
+              }}
+            >
+              <SettingsOutlined sx={{ color: iconColor, fontSize: 22 }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
       )}
 
-      {/* 💬 Кнопка чата */}
-      <button
+      {/* Кнопка чата */}
+      <Button
         onClick={onChat}
-        aria-label="Чат"
-        className="
-          absolute bottom-[10px] right-[10px]
-          p-3 bg-accent text-white rounded-full shadow-lg
-          hover:opacity-90 transition
-        "
-        title="Чат"
+        variant="contained"
+        disableElevation
+        sx={{
+          position: "absolute",
+          right: 16,
+          bottom: 16,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          px: 2.5,
+          py: 1,
+          borderRadius: "50px",
+          backgroundColor: "rgba(255,255,255,0.25)",
+          color: iconColor,
+          fontWeight: 600,
+          textTransform: "none",
+          fontSize: "1rem",
+          "&:hover": {
+            backgroundColor: "rgba(255,255,255,0.4)",
+          },
+          boxShadow:
+            theme.palette.mode === "dark"
+              ? "0 4px 12px rgba(0,0,0,0.8)"
+              : "0 4px 12px rgba(0,0,0,0.2)",
+        }}
       >
-        <img src={chatIcon} alt="" className="w-6 h-6" />
-      </button>
-    </div>
+        <ChatBubbleOutline sx={{ fontSize: 22 }} />
+        Чат
+      </Button>
+    </Box>
   );
 };

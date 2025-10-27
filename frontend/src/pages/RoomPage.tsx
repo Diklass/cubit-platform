@@ -1,26 +1,33 @@
 // src/pages/RoomPage.tsx
-import React, { useEffect, useRef, useState } from 'react';
-import api from '../api';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
-import DOMPurify from 'dompurify';
-import { useAuth } from '../auth/AuthContext';
-import EditMessageModal, { Attachment } from '../components/chat/EditMessageModal';
-import { useParams } from 'react-router-dom';
-import copy from 'copy-to-clipboard';
-import { ChatWindow } from '../components/chat/ChatWindow';
-import { useRoomSocket, RoomMessage } from '../hooks/useRoomSocket';
-import { RoomHeader } from '../components/RoomHeader';
-import { RoomSettingsModal } from '../components/RoomSettingsModal';
+import React, { useEffect, useRef, useState } from "react";
+import api from "../api";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
+import DOMPurify from "dompurify";
+import { useAuth } from "../auth/AuthContext";
+import EditMessageModal, {
+  Attachment,
+} from "../components/chat/EditMessageModal";
+import { useParams } from "react-router-dom";
+import copy from "copy-to-clipboard";
+import { ChatWindow } from "../components/chat/ChatWindow";
+import { useRoomSocket, RoomMessage } from "../hooks/useRoomSocket";
+import { RoomHeader } from "../components/RoomHeader";
+import { RoomSettingsModal } from "../components/RoomSettingsModal";
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AxiosResponse } from 'axios';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "@mui/material/styles";
 
-import 'react-quill/dist/quill.snow.css';
+import {
+  Box,
+  Typography,
+  IconButton,
+  Tooltip,
+  Paper,
+} from "@mui/material";
+import { EditOutlined, DeleteOutline } from "@mui/icons-material";
 
-import editIcon from '../assets/icons/edit.svg';
-import deleteIcon from '../assets/icons/delete.svg';
+import "react-quill/dist/quill.snow.css";
 
 interface RoomInfo {
   id: string;
@@ -38,63 +45,69 @@ interface RoomSettings {
 export function RoomPage() {
   const { code } = useParams<{ code: string }>();
   if (!code) return null;
+
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const theme = useTheme();
 
-  const [text, setText] = useState('');
+  const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [dragCounter, setDragCounter] = useState(0);
+
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const [editingMessage, setEditingMessage] = useState<RoomMessage | null>(null);
-  const [editText, setEditText] = useState('');
+  const [editingMessage, setEditingMessage] = useState<RoomMessage | null>(
+    null
+  );
+  const [editText, setEditText] = useState("");
   const [editRemoveIds, setEditRemoveIds] = useState<string[]>([]);
   const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const isTeacher = user?.role === 'TEACHER' || user?.role === 'ADMIN';
-  const isStudent = user?.role === 'STUDENT';
+  const isTeacher = user?.role === "TEACHER" || user?.role === "ADMIN";
+  const isStudent = user?.role === "STUDENT";
 
-  const [chatSessions, setChatSessions] = useState<{ id: string; student?: { email: string } }[]>([]);
+  const [chatSessions, setChatSessions] = useState<
+    { id: string; student?: { email: string } }[]
+  >([]);
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [showChat, setShowChat] = useState(false);
 
-  const theme = useTheme();
+  const [codeOverlayOpen, setCodeOverlayOpen] = useState(false);
 
-    const [codeOverlayOpen, setCodeOverlayOpen] = useState(false);
-
-
-  // NEW: состояние свернутого/развернутого композера для материалов
+  // раскрыт ли композер в "материалах"
   const [composerOpen, setComposerOpen] = useState(false);
 
-  
-
-  // Настройки комнаты (цвет/название)
+  // настройки комнаты (название / цвет)
   const [settings, setSettings] = useState<RoomSettings>({
-    title: '',
-    bgColor: '#FFFFFF',
+    title: "",
+    bgColor: "#FFFFFF",
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // === заголовок / кнопки шапки ===
   const handleEdit = () => setSettingsOpen(true);
-   const handleFullscreen = () => {
+
+  const handleFullscreen = () => {
     setCodeOverlayOpen(true);
   };
+
   const handleChat = () => {
-    setShowChat(v => {
+    setShowChat((v) => {
       const next = !v;
       if (next) {
-        // уходим в чат — принудительно сворачиваем композер и скрываем FAB
+        // если уходим в чат — сворачиваем композер, как ты хотел
         setComposerOpen(false);
       }
       return next;
     });
   };
 
+  // esc закрывает оверлей кода
   useEffect(() => {
     if (!codeOverlayOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -104,116 +117,147 @@ export function RoomPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [codeOverlayOpen]);
 
+  // === WebSocket сообщений комнаты ===
   const { messages, setMessages, socket } = useRoomSocket({
     code,
-    onError: console.error
+    onError: console.error,
   });
 
+  // === Запрос общей инфы о комнате ===
   const { data: info } = useQuery<RoomInfo, Error>({
-    queryKey: ['roomInfo', code],
-    queryFn: () => api.get<RoomInfo>(`/rooms/${code}`).then(r => r.data),
+    queryKey: ["roomInfo", code],
+    queryFn: () => api.get<RoomInfo>(`/rooms/${code}`).then((r) => r.data),
     enabled: !!code,
   });
 
+  // === История сообщений материалов ===
   const { data: queriedMessages } = useQuery<RoomMessage[], Error>({
-    queryKey: ['roomMessages', code],
+    queryKey: ["roomMessages", code],
     queryFn: () =>
-      api.get<{ messages: RoomMessage[] }>(`/rooms/${code}`).then(res => res.data.messages.reverse()),
+      api
+        .get<{ messages: RoomMessage[] }>(`/rooms/${code}`)
+        .then((res) => res.data.messages.reverse()),
   });
 
   const roomTitle = info?.title ?? code!;
 
   useEffect(() => {
-    if (info) setSettings({ title: info.title, bgColor: info.bgColor });
+    if (info)
+      setSettings({
+        title: info.title,
+        bgColor: info.bgColor,
+      });
   }, [info]);
 
-  const saveSettings = useMutation<
-    { bgColor: string },
-    Error,
-    RoomSettings
-  >({
+  // === Сохранение настроек комнаты ===
+  const saveSettings = useMutation<{ bgColor: string }, Error, RoomSettings>({
     mutationFn: async (newSettings: RoomSettings): Promise<{ bgColor: string }> =>
       api
-        .patch<{ bgColor: string; title: string }>(`/rooms/${code}/settings`, newSettings)
-        .then(res => res.data),
+        .patch<{ bgColor: string; title: string }>(
+          `/rooms/${code}/settings`,
+          newSettings
+        )
+        .then((res) => res.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['roomInfo', code] });
+      queryClient.invalidateQueries({ queryKey: ["roomInfo", code] });
       setSettingsOpen(false);
     },
   });
 
+  // === применяем загруженные сообщения
   useEffect(() => {
     if (queriedMessages) setMessages(queriedMessages);
   }, [queriedMessages, setMessages]);
 
+  // === для ученика: получить /rooms/:code/chats (его персональная сессия)
   useEffect(() => {
     if (!isStudent) return;
-    api.get<{ id: string }>(`/rooms/${code}/chats`)
-      .then(r => {
+    api
+      .get<{ id: string }>(`/rooms/${code}/chats`)
+      .then((r) => {
         setChatSessionId(r.data.id);
-        setUnreadCounts(u => ({ ...u, [r.data.id]: 0 }));
+        setUnreadCounts((u) => ({ ...u, [r.data.id]: 0 }));
       })
       .catch(console.error);
   }, [isStudent, code]);
 
+  // === для учителя: список чатов, непрочитанные
   useEffect(() => {
     if (!isTeacher || !showChat) return;
-    api.get(`/rooms/${code}/chats`)
-      .then(r => setChatSessions(r.data))
+    api
+      .get(`/rooms/${code}/chats`)
+      .then((r) => setChatSessions(r.data))
       .catch(console.error);
-    api.get(`/rooms/${code}/unread-counts`)
-      .then(r => setUnreadCounts(r.data))
+
+    api
+      .get(`/rooms/${code}/unread-counts`)
+      .then((r) => setUnreadCounts(r.data))
       .catch(console.error);
   }, [isTeacher, showChat, code]);
 
-  // DnD для материалов
+  // === DnD при перетаскивании файлов в область материалов ===
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const onDragEnter = (e: DragEvent) => { e.preventDefault(); setDragCounter(c => c + 1); };
-    const onDragOver  = (e: DragEvent) => { e.preventDefault(); };
-    const onDragLeave = (e: DragEvent) => { e.preventDefault(); setDragCounter(c => c - 1); };
-    const onDrop      = (e: DragEvent) => {
+
+    const onDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      setDragCounter((c) => c + 1);
+    };
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    const onDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      setDragCounter((c) => c - 1);
+    };
+    const onDrop = (e: DragEvent) => {
       e.preventDefault();
       setDragCounter(0);
       const dropped = Array.from(e.dataTransfer?.files || []);
-      setFiles(prev => [...prev, ...dropped]);
+      setFiles((prev) => [...prev, ...dropped]);
     };
-    el.addEventListener('dragenter', onDragEnter);
-    el.addEventListener('dragover',  onDragOver);
-    el.addEventListener('dragleave', onDragLeave);
-    el.addEventListener('drop',     onDrop);
+
+    el.addEventListener("dragenter", onDragEnter);
+    el.addEventListener("dragover", onDragOver);
+    el.addEventListener("dragleave", onDragLeave);
+    el.addEventListener("drop", onDrop);
+
     return () => {
-      el.removeEventListener('dragenter', onDragEnter);
-      el.removeEventListener('dragover',  onDragOver);
-      el.removeEventListener('dragleave', onDragLeave);
-      el.removeEventListener('drop',     onDrop);
+      el.removeEventListener("dragenter", onDragEnter);
+      el.removeEventListener("dragover", onDragOver);
+      el.removeEventListener("dragleave", onDragLeave);
+      el.removeEventListener("drop", onDrop);
     };
   }, [files]);
 
-  // Отправка материалов
+  // === Отправка нового материала ===
   const addMessage = useMutation<unknown, Error, FormData>({
     mutationFn: (fd: FormData) => api.post(`/rooms/${code}/messages`, fd),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['roomMessages', code] });
+      queryClient.invalidateQueries({ queryKey: ["roomMessages", code] });
     },
-    onError: () => alert('Ошибка отправки'),
+    onError: () => alert("Ошибка отправки"),
   });
 
-  const sendMaterial = (e: React.FormEvent) => {
+  const sendMaterial = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!text && files.length === 0) return;
+
     const fd = new FormData();
-    if (text) fd.append('text', text);
-    files.forEach(f => fd.append('file', f));
+    if (text) fd.append("text", text);
+    files.forEach((f) => fd.append("file", f));
+
     addMessage.mutate(fd);
-    setText(''); setFiles([]);
+
+    setText("");
+    setFiles([]);
   };
 
-  // Редактирование материала
+  // === Редактирование имеющегося сообщения ===
   const onStartEdit = (m: RoomMessage) => {
     setEditingMessage(m);
-    setEditText(m.text ?? '');
+    setEditText(m.text ?? "");
     setEditRemoveIds([]);
     setEditNewFiles([]);
   };
@@ -221,42 +265,59 @@ export function RoomPage() {
   const onSaveEdit = async () => {
     if (!editingMessage) return;
     const fd = new FormData();
-    fd.append('text', editText);
-    editRemoveIds.forEach(id => fd.append('removeAttachmentIds', id));
-    editNewFiles.forEach(f => fd.append('file', f));
+    fd.append("text", editText);
+    editRemoveIds.forEach((id) => fd.append("removeAttachmentIds", id));
+    editNewFiles.forEach((f) => fd.append("file", f));
 
     try {
       const updated: RoomMessage = (
-        await api.patch(
-          `/rooms/${code}/messages/${editingMessage.id}`,
-          fd,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
-        )
+        await api.patch(`/rooms/${code}/messages/${editingMessage.id}`, fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
       ).data;
-      setMessages(prev => prev.map(m => (m.id === updated.id ? updated : m)));
-      if (socket) socket.emit('messageEdited', updated);
+
+      setMessages((prev) =>
+        prev.map((m) => (m.id === updated.id ? updated : m))
+      );
+
+      if (socket) socket.emit("messageEdited", updated);
+
       setEditingMessage(null);
     } catch {
-      alert('Не удалось обновить сообщение');
+      alert("Не удалось обновить сообщение");
     }
   };
 
   const onDelete = (id: string) => {
-    if (!window.confirm('Подтвердить удаление?')) return;
-    api.delete(`/rooms/${code}/messages/${id}`)
+    if (!window.confirm("Подтвердить удаление?")) return;
+    api
+      .delete(`/rooms/${code}/messages/${id}`)
       .then(() => {
-        setMessages(prev => prev.filter(m => m.id !== id));
-        if (socket) socket.emit('deleteMessage', { roomCode: code, messageId: id });
+        setMessages((prev) => prev.filter((m) => m.id !== id));
+        if (socket)
+          socket.emit("deleteMessage", { roomCode: code, messageId: id });
       })
-      .catch(() => alert('Не удалось удалить сообщение'));
+      .catch(() => alert("Не удалось удалить сообщение"));
   };
 
-  // --- РЕНДЕР ---
-  return (
-    <div className="flex flex-col h-full bg-m3-bg overflow-auto">
-      <div className="mt-[30px]" />
+  // ---------------- RENDER -----------------
 
-      {/* ШАПКА: compact — когда открыт чат */}
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        backgroundColor: theme.palette.background.default,
+        color: theme.palette.text.primary,
+        transition: "background-color 0.3s ease, color 0.3s ease",
+        overflow: "hidden",
+      }}
+    >
+      {/* небольшой отступ сверху как на других страницах */}
+      <Box sx={{ mt: "30px" }} />
+
+      {/* ШАПКА КОМНАТЫ (RoomHeader твой, логика не менялась) */}
       <RoomHeader
         name={info?.title ?? code!}
         code={code!}
@@ -268,35 +329,75 @@ export function RoomPage() {
         isTeacher={isTeacher}
       />
 
-
-      {/* ✅ Полноэкранный показ кода */}
+      {/* Модалка "код комнаты" (полноэкранный показ кода) */}
       {codeOverlayOpen && (
-        <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center"
-          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+        <Box
           onClick={() => setCodeOverlayOpen(false)}
+          sx={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            p: 2,
+          }}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-2xl p-8 mx-4 shadow-2xl text-center"
-            style={{
+          <Paper
+            onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
+            sx={{
+              borderRadius: "20px",
+              p: 4,
+              maxWidth: 720,
+              width: "100%",
+              textAlign: "center",
               backgroundColor: theme.palette.background.paper,
               color: theme.palette.text.primary,
               border: `1px solid ${theme.palette.divider}`,
-              maxWidth: 720,
-              width: "100%",
+              boxShadow:
+                theme.palette.mode === "dark"
+                  ? "0 12px 32px rgba(0,0,0,0.8)"
+                  : "0 12px 32px rgba(0,0,0,0.16)",
             }}
           >
-            <div className="mb-4 text-xl opacity-80">Код курса</div>
-            <div
-              className="font-mono font-bold tracking-widest break-all select-all"
-              style={{ fontSize: "clamp(28px, 8vw, 72px)" }}
+            <Typography
+              sx={{
+                mb: 2,
+                fontSize: "1rem",
+                fontWeight: 500,
+                opacity: 0.8,
+                color: theme.palette.text.secondary,
+              }}
+            >
+              Код курса
+            </Typography>
+
+            <Box
+              sx={{
+                fontFamily: "monospace",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                wordBreak: "break-all",
+                userSelect: "all",
+                fontSize: "clamp(28px,8vw,72px)",
+                color: theme.palette.text.primary,
+              }}
             >
               {code}
-            </div>
+            </Box>
 
-            <div className="mt-8 flex items-center justify-center gap-3">
-              <button
+            <Box
+              sx={{
+                mt: 4,
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                gap: 2,
+              }}
+            >
+              <Box<'button'>
+                component="button"
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(code);
@@ -305,295 +406,715 @@ export function RoomPage() {
                     alert("❌ Не удалось скопировать");
                   }
                 }}
-                className="px-5 py-2 rounded-full font-medium hover:opacity-90 transition"
-                style={{
+                sx={{
+                  px: 3,
+                  py: 1,
+                  borderRadius: "24px",
+                  fontWeight: 500,
+                  fontSize: "0.95rem",
+                  border: "none",
                   backgroundColor: theme.palette.primary.main,
                   color: theme.palette.primary.contrastText,
+                  cursor: "pointer",
+                  "&:hover": {
+                    backgroundColor: theme.palette.primary.dark,
+                  },
                 }}
               >
                 Скопировать
-              </button>
+              </Box>
 
-              <button
+              <Box<'button'>
+                component="button"
                 onClick={() => setCodeOverlayOpen(false)}
-                className="px-5 py-2 rounded-full font-medium hover:opacity-80 transition"
-                style={{
+                sx={{
+                  px: 3,
+                  py: 1,
+                  borderRadius: "24px",
+                  fontWeight: 500,
+                  fontSize: "0.95rem",
+                  border: "none",
                   backgroundColor: theme.palette.action.hover,
                   color: theme.palette.text.primary,
+                  cursor: "pointer",
+                  "&:hover": {
+                    backgroundColor: theme.palette.action.selected,
+                  },
                 }}
               >
                 Закрыть
-              </button>
-            </div>
-          </div>
-        </div>
+              </Box>
+            </Box>
+          </Paper>
+        </Box>
       )}
 
-      {/* Модалка настроек */}
+      {/* Модалка настроек комнаты */}
       <RoomSettingsModal
         initial={settings}
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        onSave={newSettings => {
-          saveSettings.mutate({ title: newSettings.title, bgColor: newSettings.bgColor });
+        onSave={(newSettings) => {
+          saveSettings.mutate({
+            title: newSettings.title,
+            bgColor: newSettings.bgColor,
+          });
         }}
       />
 
-      {/* КОД КОМНАТЫ (большой баннер) — как у вас было, опускаю для краткости */}
-
-      {/* КОНТЕНТ */}
-      <div className="pt-1 pb-1 flex-1 relative">
+      {/* Основной контент: ЧАТ либо МАТЕРИАЛЫ */}
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+          pb: 0, // композер сам нависает fixed внизу
+        }}
+      >
         {showChat ? (
-          // === ЧАТ ===
-          <div className="mx-[20px] flex-1 min-h-0">
-          <div className="flex flex-1 min-h-0">
-            {/* список сессий (учитель) */}
-            {isTeacher && (
-              <aside className="w-1/3 bg-m3-surf p-4 rounded-2xl mr-2 border border-m3-outline">
-                <h2 className="mb-2 text-lg font-semibold">Ученики</h2>
-                {chatSessions.map(s => (
-                  <div
-                    key={s.id}
-                    onClick={() => {
-                      setChatSessionId(s.id);
-                      setUnreadCounts(u => ({ ...u, [s.id]: 0 }));
-                    }}
-                    className={[
-                      'mb-2 px-3 py-2 rounded-lg cursor-pointer border',
-                      s.id === chatSessionId
-                        ? 'bg-gray-200 border-transparent'
-                        : 'hover:bg-gray-100 border-gray-200'
-                    ].join(' ')}
-                  >
-                    {s.student?.email}
-                    {unreadCounts[s.id] > 0 && (
-                      <span className="ml-2 text-red-600">●</span>
-                    )}
-                  </div>
-                ))}
-              </aside>
-            )}
-
-            {/* окно чата */}
-            <div className="flex-1 bg-m3-surf overflow-y-auto rounded-2xl border border-m3-outline" style={{ minHeight: 0 }}>
-              {chatSessionId ? (
-                <ChatWindow sessionId={chatSessionId} setUnreadCounts={setUnreadCounts} />
-              ) : (
-                <div className="p-6 text-center text-gray-500">Выберите чат</div>
-              )}
-            </div>
-          </div>
-        </div>
-        ) : (
-          // === МАТЕРИАЛЫ ===
-          <div ref={containerRef} className="flex flex-1 flex-col min-h-0 mx-[20px]">
-            {dragCounter > 0 && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black bg-opacity-20 border-4 border-dashed border-indigo-600 rounded-2xl">
-                <span className="text-white">Перетащите файлы сюда</span>
-              </div>
-            )}
-
-            <div className="flex-1 overflow-auto pt-4 pb-24 space-y-4"> {/* увеличили нижний паддинг под выезжающий композер */}
-              {messages.slice().reverse().map(m => (
-                <div key={m.id} className="relative bg-m3-surf p-4 rounded-2xl shadow-level1 border border-m3-outline">
-                  <div className="text-xs text-gray-500 mb-2">
-                    {m.author?.email || 'Гость'} — {new Date(m.createdAt).toLocaleString()}
-                  </div>
-
-                  {m.text && (
-                    <div
-                      className="prose mb-2"
-                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(m.text) }}
-                    />
-                  )}
-
-                  <div className="mt-2 flex flex-col space-y-2">
-                    {m.attachments?.map(att => {
-                      const url = `http://localhost:3001/uploads/${att.url}`;
-                      const ext = att.url.split('.').pop()!.toLowerCase();
-                      const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
-                      return (
-                        <a key={att.id} href={url} download className="inline-block">
-                          {isImg ? (
-                            <img src={url} alt={decodeURIComponent(att.url)} className="max-h-48 rounded-lg border cursor-pointer" />
-                          ) : (
-                            <span className="text-blue-600 underline cursor-pointer">
-                              📄 {decodeURIComponent(att.url)}
-                            </span>
-                          )}
-                        </a>
-                      );
-                    })}
-                  </div>
-
-                  {m.author?.id === user?.id && !editingMessage && (
-                    <div className="absolute top-2 right-2 flex space-x-2">
-                      <button
-                        onClick={() => onStartEdit(m)}
-                        title="Редактировать"
-                        className="p-1 hover:bg-gray-200 rounded"
-                      >
-                        <img src={editIcon} alt="Редактировать" className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => onDelete(m.id)}
-                        title="Удалить"
-                        className="p-1 hover:bg-gray-200 rounded"
-                      >
-                        <img src={deleteIcon} alt="Удалить" className="w-5 h-5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-              <div ref={bottomRef} />
-            </div>
-
-            {/* FAB — только в материалах, только для учителя */}
-            {isTeacher && !showChat && !composerOpen && (
-              <button
-                onClick={() => setComposerOpen(true)}
-                className="
-                  fixed bottom-[20px] right-[20px] z-30
-                  h-14 w-14 rounded-full
-                  bg-blue-600 hover:bg-blue-700
-                  text-white text-3xl leading-none
-                  shadow-level2 flex items-center justify-center
-                "
-                aria-label="Открыть отправку сообщения"
-                title="Отправить сообщение"
-              >
-                +
-              </button>
-            )}
-
-            {/* Выезжающий композер — только в материалах */}
-            {isTeacher && !showChat && (
-            <div
-              className={[
-                'fixed left-0 right-0 bottom-0 z-20',
-                'transition-all duration-300',
-                composerOpen ? 'translate-y-0 opacity-100' : 'translate-y-[110%] opacity-0',
-              ].join(' ')}
+          // ===================== ЧАТ =====================
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              px: { xs: 2, md: 3 },
+              pb: 2,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                gap: 2,
+              }}
             >
-              <form
-                onSubmit={(e) => {
-                  sendMaterial(e);
-                  setComposerOpen(false);
-                }}
-                className="w-full px-2 pt-1 pb-safe bg-transparent"
-              >
-                {/* Верхняя часть с редактором */}
-                <div
-                  className="rounded-t-lg px-3 pt-5 pb-12 mx-[10px]"
-                  style={{
-                    backgroundColor: theme.palette.background.paper,
+              {/* список сессий (только для учителя) */}
+              {isTeacher && (
+                <Box
+                  sx={{
+                    width: { xs: "40%", md: "30%", lg: "28%" },
+                    minWidth: 220,
+                    maxWidth: 320,
+                    borderRadius: "20px",
+                    p: 2,
                     border: `1px solid ${theme.palette.divider}`,
-                    color: theme.palette.text.primary,
+                    backgroundColor: theme.palette.background.paper,
+                    boxShadow:
+                      theme.palette.mode === "dark"
+                        ? "0 2px 8px rgba(0,0,0,0.6)"
+                        : "0 2px 8px rgba(0,0,0,0.08)",
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
                   }}
                 >
-                  <div className="h-[180px]">
-                    <ReactQuill
-                      value={text}
-                      onChange={setText}
-                      modules={{
-                        toolbar: [
-                          ['bold', 'italic', 'underline', 'strike'],
-                          [{ header: 1 }, { header: 2 }],
-                          [{ list: 'ordered' }, { list: 'bullet' }],
-                          [{ size: ['small', false, 'large', 'huge'] }],
-                          ['link'], ['clean'],
-                        ],
-                      }}
-                      formats={['header','bold','italic','underline','strike','list','bullet','size','link']}
-                      placeholder="Введите сообщение..."
-                      className="h-full"
-                    />
-                  </div>
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
+                    sx={{
+                      mb: 1.5,
+                      color: theme.palette.text.primary,
+                    }}
+                  >
+                    Ученики
+                  </Typography>
 
-                  {files.length > 0 && (
-                    <div className="flex flex-wrap gap-2 my-2">
-                      {files.map((file, idx) => (
-                        <div
-                          key={idx}
-                          className="px-2 py-1 rounded-lg flex items-center space-x-1"
-                          style={{
-                            backgroundColor: theme.palette.action.hover,
-                            color: theme.palette.text.secondary,
+                  <Box
+                    sx={{
+                      flex: 1,
+                      minHeight: 0,
+                      overflowY: "auto",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 1,
+                    }}
+                  >
+                    {chatSessions.map((s) => (
+                      <Box
+                        key={s.id}
+                        onClick={() => {
+                          setChatSessionId(s.id);
+                          setUnreadCounts((u) => ({
+                            ...u,
+                            [s.id]: 0,
+                          }));
+                        }}
+                        sx={{
+                          cursor: "pointer",
+                          px: 2,
+                          py: 1.5,
+                          borderRadius: "12px",
+                          border: `1px solid ${theme.palette.divider}`,
+                          backgroundColor:
+                            s.id === chatSessionId
+                              ? theme.palette.action.selected
+                              : theme.palette.background.paper,
+                          "&:hover": {
+                            backgroundColor:
+                              s.id === chatSessionId
+                                ? theme.palette.action.selected
+                                : theme.palette.action.hover,
+                          },
+                          position: "relative",
+                        }}
+                      >
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: theme.palette.text.primary,
+                            fontWeight: 500,
+                            wordBreak: "break-word",
                           }}
                         >
-                          <span className="text-xs break-all">{file.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}
-                            className="text-sm"
-                            style={{ color: theme.palette.error.main }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                          {s.student?.email}
+                        </Typography>
 
-                {/* Нижняя панель кнопок */}
-                <div
-                  className="rounded-b-lg px-3 py-2 mx-[10px] flex items-center justify-end space-x-4"
-                  style={{
-                    backgroundColor: theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setComposerOpen(false)}
-                    className="text-sm px-3 py-2"
-                    style={{ color: theme.palette.text.secondary }}
+                        {unreadCounts[s.id] > 0 && (
+                          <Box
+                            component="span"
+                            sx={{
+                              position: "absolute",
+                              top: 8,
+                              right: 8,
+                              width: 8,
+                              height: 8,
+                              borderRadius: "9999px",
+                              backgroundColor: theme.palette.error.main,
+                            }}
+                          />
+                        )}
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Окно чата */}
+              <Box
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                  borderRadius: "20px",
+                  border: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: theme.palette.background.paper,
+                  boxShadow:
+                    theme.palette.mode === "dark"
+                      ? "0 2px 8px rgba(0,0,0,0.6)"
+                      : "0 2px 8px rgba(0,0,0,0.08)",
+                  minHeight: 0,
+                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {chatSessionId ? (
+                  <ChatWindow
+                    sessionId={chatSessionId}
+                    setUnreadCounts={setUnreadCounts}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      p: 4,
+                      textAlign: "center",
+                      color: theme.palette.text.secondary,
+                      fontSize: "0.9rem",
+                    }}
                   >
-                    Свернуть
-                  </button>
-
-                  <div className="flex items-center gap-3">
-                    <input
-                      id="roomFiles"
-                      type="file"
-                      className="hidden"
-                      multiple
-                      onChange={e => setFiles(Array.from(e.target.files || []))}
-                    />
-                    <label
-                      htmlFor="roomFiles"
-                      className="cursor-pointer px-4 py-2 rounded-full text-base font-medium"
-                      style={{
-                        backgroundColor: theme.palette.action.hover,
-                        color: theme.palette.text.primary,
-                      }}
-                    >
-                      Прикрепить файл
-                    </label>
-                    <button
-                      type="submit"
-                      disabled={!text && files.length === 0}
-                      className="px-6 py-2 rounded-full font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{
-                        backgroundColor: theme.palette.primary.main,
-                        color: theme.palette.primary.contrastText,
-                      }}
-                    >
-                      Отправить
-                    </button>
-                  </div>
-                </div>
-              </form>
-              </div>
+                    Выберите чат
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          </Box>
+        ) : (
+          // ===================== МАТЕРИАЛЫ =====================
+          <Box
+            ref={containerRef}
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              px: { xs: 2, md: 3 },
+              pb: 8, // место под плавающий композер
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* drag overlay */}
+            {dragCounter > 0 && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "20px",
+                  bgcolor: "rgba(0,0,0,0.4)",
+                  border: `2px dashed ${theme.palette.primary.main}`,
+                  color: theme.palette.primary.contrastText,
+                  fontSize: "1.1rem",
+                  fontWeight: 500,
+                }}
+              >
+                Перетащите файлы сюда
+              </Box>
             )}
-          </div>
-        )}
-      </div>
 
-      {/* EDIT MODAL */}
+            {/* список материалов */}
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                pt: 3,
+                pb: 10, // дополнительный отступ над FAB
+              }}
+            >
+              {messages
+                .slice()
+                .reverse()
+                .map((m) => (
+                  <Paper
+                    key={m.id}
+                    elevation={1}
+                    sx={{
+                      position: "relative",
+                      p: 3,
+                      borderRadius: "20px",
+                      backgroundColor: theme.palette.background.paper,
+                      border: `1px solid ${theme.palette.divider}`,
+                      boxShadow:
+                        theme.palette.mode === "dark"
+                          ? "0 2px 8px rgba(0,0,0,0.6)"
+                          : "0 2px 8px rgba(0,0,0,0.08)",
+                    }}
+                  >
+                    {/* метаданные сообщения */}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        mb: 1.5,
+                        display: "block",
+                        color: theme.palette.text.secondary,
+                      }}
+                    >
+                      {(m.author?.email || "Гость") +
+                        " — " +
+                        new Date(m.createdAt).toLocaleString()}
+                    </Typography>
+
+                    {/* текст сообщения */}
+                    {m.text && (
+                      <Box
+                        sx={{
+                          mb: 1.5,
+                          color: theme.palette.text.primary,
+                          fontSize: "0.95rem",
+                          lineHeight: 1.45,
+                          wordBreak: "break-word",
+                          "& a": {
+                            color: theme.palette.primary.main,
+                            textDecoration: "underline",
+                          },
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: DOMPurify.sanitize(m.text),
+                        }}
+                      />
+                    )}
+
+                    {/* вложения */}
+                    <Box
+                      sx={{
+                        mt: 1,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1.5,
+                      }}
+                    >
+                      {m.attachments?.map((att) => {
+                        const url = `http://localhost:3001/uploads/${att.url}`;
+                        const ext = att.url.split(".").pop()!.toLowerCase();
+                        const isImg = [
+                          "png",
+                          "jpg",
+                          "jpeg",
+                          "gif",
+                          "webp",
+                        ].includes(ext);
+
+                        return (
+                          <a
+                            key={att.id}
+                            href={url}
+                            download
+                            style={{ display: "inline-block" }}
+                          >
+                            {isImg ? (
+                              <Box<'img'>
+                                component="img"
+                                src={url}
+                                alt={decodeURIComponent(att.url)}
+                                sx={{
+                                  maxHeight: 192,
+                                  maxWidth: "100%",
+                                  borderRadius: "12px",
+                                  border: `1px solid ${theme.palette.divider}`,
+                                  cursor: "pointer",
+                                }}
+                              />
+                            ) : (
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: theme.palette.primary.main,
+                                  textDecoration: "underline",
+                                  cursor: "pointer",
+                                  wordBreak: "break-all",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 1,
+                                }}
+                              >
+                                📄 {decodeURIComponent(att.url)}
+                              </Typography>
+                            )}
+                          </a>
+                        );
+                      })}
+                    </Box>
+
+                    {/* кнопки редактирования/удаления (только если автор = текущий пользователь) */}
+                    {m.author?.id === user?.id && !editingMessage && (
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          display: "flex",
+                          gap: 1,
+                        }}
+                      >
+                        <Tooltip title="Редактировать">
+                          <IconButton
+                            size="small"
+                            onClick={() => onStartEdit(m)}
+                            sx={{
+                              color: theme.palette.text.secondary,
+                              "&:hover": {
+                                backgroundColor:
+                                  theme.palette.action.hover,
+                              },
+                            }}
+                          >
+                            <EditOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+
+                        <Tooltip title="Удалить">
+                          <IconButton
+                            size="small"
+                            onClick={() => onDelete(m.id)}
+                            sx={{
+                              color: theme.palette.error.main,
+                              "&:hover": {
+                                backgroundColor:
+                                  theme.palette.action.hover,
+                              },
+                            }}
+                          >
+                            <DeleteOutline fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    )}
+                  </Paper>
+                ))}
+              <div ref={bottomRef} />
+            </Box>
+
+            {/* FAB — только для учителя, только в материалах, только если композер закрыт */}
+            {isTeacher && !showChat && !composerOpen && (
+              <Box<'button'>
+                component="button"
+                onClick={() => setComposerOpen(true)}
+                aria-label="Открыть отправку сообщения"
+                title="Отправить сообщение"
+                sx={{
+                  position: "fixed",
+                  right: 24,
+                  bottom: 24,
+                  zIndex: 30,
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  border: "none",
+                  backgroundColor: theme.palette.primary.main,
+                  color: theme.palette.primary.contrastText,
+                  fontSize: "2rem",
+                  fontWeight: 500,
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  boxShadow:
+                    theme.palette.mode === "dark"
+                      ? "0 4px 12px rgba(0,0,0,0.7)"
+                      : "0 4px 12px rgba(0,0,0,0.15)",
+                  transition: "background-color 0.25s ease",
+                  "&:hover": {
+                    backgroundColor: theme.palette.primary.dark,
+                  },
+                }}
+              >
+                +
+              </Box>
+            )}
+
+            {/* ВЫЕЗЖАЮЩИЙ КОМПОЗЕР (отправка материалов). Он остаётся управляемый твоими состояниями */}
+            {isTeacher && !showChat && (
+              <Box
+                sx={{
+                  position: "fixed",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  zIndex: 20,
+                  transform: composerOpen
+                    ? "translateY(0)"
+                    : "translateY(110%)",
+                  opacity: composerOpen ? 1 : 0,
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <form
+                  onSubmit={(e) => {
+                    sendMaterial(e);
+                    setComposerOpen(false);
+                  }}
+                  className="w-full"
+                >
+                  {/* Верхняя часть с редактором */}
+                  <Box
+                    sx={{
+                      mx: "10px",
+                      borderTopLeftRadius: "16px",
+                      borderTopRightRadius: "16px",
+                      border: `1px solid ${theme.palette.divider}`,
+                      backgroundColor: theme.palette.background.paper,
+                      color: theme.palette.text.primary,
+                      px: 2,
+                      pt: 3,
+                      pb: 4,
+                    }}
+                  >
+                    <Box sx={{ height: "180px" }}>
+                      <ReactQuill
+                        value={text}
+                        onChange={setText}
+                        modules={{
+                          toolbar: [
+                            ["bold", "italic", "underline", "strike"],
+                            [{ header: 1 }, { header: 2 }],
+                            [{ list: "ordered" }, { list: "bullet" }],
+                            [{ size: ["small", false, "large", "huge"] }],
+                            ["link"],
+                            ["clean"],
+                          ],
+                        }}
+                        formats={[
+                          "header",
+                          "bold",
+                          "italic",
+                          "underline",
+                          "strike",
+                          "list",
+                          "bullet",
+                          "size",
+                          "link",
+                        ]}
+                        placeholder="Введите сообщение..."
+                        className="h-full"
+                      />
+                    </Box>
+
+                    {files.length > 0 && (
+                      <Box
+                        sx={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 1,
+                          my: 2,
+                        }}
+                      >
+                        {files.map((file, idx) => (
+                          <Box
+                            key={idx}
+                            sx={{
+                              px: 1.5,
+                              py: 0.5,
+                              borderRadius: "10px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                              backgroundColor:
+                                theme.palette.action.hover,
+                              color: theme.palette.text.secondary,
+                              fontSize: "0.75rem",
+                              lineHeight: 1.2,
+                              wordBreak: "break-all",
+                            }}
+                          >
+                            <span>{file.name}</span>
+                            <Box<'button'>
+                              component="button"
+                              type="button"
+                              onClick={() =>
+                                setFiles((prev) =>
+                                  prev.filter((_, i) => i !== idx)
+                                )
+                              }
+                              sx={{
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                fontSize: "0.8rem",
+                                lineHeight: 1,
+                                color: theme.palette.error.main,
+                              }}
+                            >
+                              ✕
+                            </Box>
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Нижняя панель кнопок */}
+                  <Box
+                    sx={{
+                      mx: "10px",
+                      borderBottomLeftRadius: "16px",
+                      borderBottomRightRadius: "16px",
+                      borderLeft: `1px solid ${theme.palette.divider}`,
+                      borderRight: `1px solid ${theme.palette.divider}`,
+                      borderBottom: `1px solid ${theme.palette.divider}`,
+                      backgroundColor: theme.palette.background.paper,
+                      color: theme.palette.text.primary,
+                      px: 2,
+                      py: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      rowGap: 1.5,
+                    }}
+                  >
+                    <Box<'button'>
+                      component="button"
+                      type="button"
+                      onClick={() => setComposerOpen(false)}
+                      sx={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        color: theme.palette.text.secondary,
+                        px: 1,
+                        py: 1,
+                      }}
+                    >
+                      Свернуть
+                    </Box>
+
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: 1.5,
+                      }}
+                    >
+                      <input
+                        id="roomFiles"
+                        type="file"
+                        className="hidden"
+                        multiple
+                        onChange={(e) =>
+                          setFiles(Array.from(e.target.files || []))
+                        }
+                      />
+
+                      <Box<'label'>
+                        component="label"
+                        htmlFor="roomFiles"
+                        sx={{
+                          cursor: "pointer",
+                          borderRadius: "999px",
+                          px: 2,
+                          py: 1,
+                          fontSize: "0.9rem",
+                          fontWeight: 500,
+                          backgroundColor:
+                            theme.palette.action.hover,
+                          color: theme.palette.text.primary,
+                          "&:hover": {
+                            backgroundColor:
+                              theme.palette.action.selected,
+                          },
+                        }}
+                      >
+                        Прикрепить файл
+                      </Box>
+
+                      <Box<'button'>
+                        component="button"
+                        type="submit"
+                        disabled={!text && files.length === 0}
+                        sx={{
+                          border: "none",
+                          cursor: !text && files.length === 0 ? "default" : "pointer",
+                          opacity: !text && files.length === 0 ? 0.5 : 1,
+                          borderRadius: "999px",
+                          px: 3,
+                          py: 1,
+                          fontSize: "0.9rem",
+                          fontWeight: 600,
+                          backgroundColor: theme.palette.primary.main,
+                          color: theme.palette.primary.contrastText,
+                          "&:hover": {
+                            backgroundColor: !text && files.length === 0
+                              ? theme.palette.primary.main
+                              : theme.palette.primary.dark,
+                          },
+                        }}
+                      >
+                        Отправить
+                      </Box>
+                    </Box>
+                  </Box>
+                </form>
+              </Box>
+            )}
+          </Box>
+        )}
+      </Box>
+
+      {/* Модалка редактирования сообщения */}
       {editingMessage && (
         <EditMessageModal
           messageId={editingMessage.id}
@@ -602,16 +1123,20 @@ export function RoomPage() {
           removeIds={editRemoveIds}
           newFiles={editNewFiles}
           onTextChange={setEditText}
-          onToggleRemove={id =>
-            setEditRemoveIds(ids =>
-              ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
+          onToggleRemove={(id) =>
+            setEditRemoveIds((ids) =>
+              ids.includes(id)
+                ? ids.filter((x) => x !== id)
+                : [...ids, id]
             )
           }
-          onAddNewFiles={files => setEditNewFiles(prev => [...prev, ...files])}
+          onAddNewFiles={(newAdded) =>
+            setEditNewFiles((prev) => [...prev, ...newAdded])
+          }
           onClose={() => setEditingMessage(null)}
           onSave={onSaveEdit}
         />
       )}
-    </div>
+    </Box>
   );
 }

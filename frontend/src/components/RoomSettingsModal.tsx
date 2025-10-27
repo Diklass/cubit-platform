@@ -1,7 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { NavButton } from './NavButton';
-import { HexColorPicker } from 'react-colorful';
-import { useTheme } from '@mui/material/styles';
+import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Box,
+  Typography,
+  IconButton,
+  useTheme,
+} from "@mui/material";
+import { HexColorPicker } from "react-colorful";
+import CloseIcon from "@mui/icons-material/Close";
 
 export interface RoomSettings {
   title: string;
@@ -22,7 +33,8 @@ export const RoomSettingsModal: React.FC<Props> = ({
   onSave,
 }) => {
   const theme = useTheme();
-  const basePresets = ['#6750A4', '#33691E', '#006A67', '#B3261E', '#1E88E5'];
+  const basePresets = ["#6750A4", "#33691E", "#006A67", "#B3261E", "#1E88E5"];
+
   const [title, setTitle] = useState(initial.title);
   const [bgColor, setBgColor] = useState(initial.bgColor);
   const [userPresets, setUserPresets] = useState<string[]>([]);
@@ -43,146 +55,281 @@ export const RoomSettingsModal: React.FC<Props> = ({
   const confirmPicker = () => {
     const color = tempPickerColor;
     if (!basePresets.includes(color) && !userPresets.includes(color)) {
-      setUserPresets(prev => [...prev, color]);
+      setUserPresets((prev) => [...prev, color]);
     }
     setBgColor(color);
     setShowPicker(false);
   };
 
-  const cancelPicker = () => {
-    setShowPicker(false);
-  };
+  const cancelPicker = () => setShowPicker(false);
 
   const removeUserPreset = (color: string) => {
-    setUserPresets(prev => prev.filter(c => c !== color));
-    if (bgColor === color) {
-      setBgColor(basePresets[0] || '');
-    }
+    setUserPresets((prev) => prev.filter((c) => c !== color));
+    if (bgColor === color) setBgColor(basePresets[0] || "");
   };
 
-  if (!isOpen) return null;
+  const handleSave = () => onSave({ title, bgColor });
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-start justify-center pt-[92px] z-50">
-      <div
-        className="relative rounded-lg shadow-lg w-full max-w-md mx-4 p-6 space-y-6"
-        style={{
-          backgroundColor: theme.palette.background.paper,
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      fullWidth
+      maxWidth="sm"
+      PaperProps={{
+        sx: {
+          borderRadius: "20px",
+          p: 2,
+          bgcolor: theme.palette.background.paper,
           border: `1px solid ${theme.palette.divider}`,
+          boxShadow:
+            theme.palette.mode === "dark"
+              ? "0 6px 18px rgba(0,0,0,0.7)"
+              : "0 6px 18px rgba(0,0,0,0.12)",
+        },
+      }}
+    >
+      {/* Заголовок */}
+      <DialogTitle
+        sx={{
+          fontSize: "1.25rem",
+          fontWeight: 600,
           color: theme.palette.text.primary,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
-        <h2 className="text-lg font-medium" style={{ color: theme.palette.text.primary }}>
-          Настройки комнаты
-        </h2>
+        Настройки комнаты
+        <IconButton onClick={onClose}>
+          <CloseIcon sx={{ color: theme.palette.text.secondary }} />
+        </IconButton>
+      </DialogTitle>
 
+      <DialogContent dividers sx={{ pb: 3 }}>
         {/* Название комнаты */}
-        <div className="flex flex-col space-y-1">
-          <label style={{ color: theme.palette.text.secondary }}>Название комнаты:</label>
-          <input
-            type="text"
+        <Box sx={{ mb: 3 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{ mb: 0.5, color: theme.palette.text.secondary }}
+          >
+            Название комнаты
+          </Typography>
+          <TextField
+            fullWidth
             value={title}
-            onChange={e => setTitle(e.target.value)}
-            className="w-full p-2 rounded"
-            style={{
-              backgroundColor: theme.palette.background.default,
-              border: `1px solid ${theme.palette.divider}`,
-              color: theme.palette.text.primary,
+            onChange={(e) => setTitle(e.target.value)}
+            size="small"
+            variant="outlined"
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "12px",
+              },
             }}
           />
-        </div>
+        </Box>
 
         {/* Текущий цвет */}
-        <div className="flex items-center space-x-3">
-          <label style={{ color: theme.palette.text.secondary }}>Текущий цвет:</label>
-          <div
-            className="w-10 h-10 rounded cursor-pointer border"
-            style={{ backgroundColor: bgColor, border: `1px solid ${theme.palette.divider}` }}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{ color: theme.palette.text.secondary }}
+          >
+            Текущий цвет:
+          </Typography>
+          <Box
             onClick={onAddColorClick}
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: "8px",
+              bgcolor: bgColor,
+              border: `1px solid ${theme.palette.divider}`,
+              cursor: "pointer",
+            }}
           />
-          <span className="text-sm" style={{ color: theme.palette.text.secondary }}>
+          <Typography
+            variant="body2"
+            sx={{ color: theme.palette.text.secondary }}
+          >
             {bgColor}
-          </span>
-        </div>
+          </Typography>
+        </Box>
 
-        {/* Базовые пресеты */}
-        <div className="flex flex-wrap gap-3 items-center">
-          {basePresets.map(color => (
-            <button
+        {/* Базовые цвета */}
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mb: 3 }}>
+          {basePresets.map((color) => (
+            <Box
               key={color}
               onClick={() => setBgColor(color)}
-              style={{
-                backgroundColor: color,
-                border: `2px solid ${bgColor === color ? theme.palette.primary.main : 'transparent'}`,
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                bgcolor: color,
+                cursor: "pointer",
+                border:
+                  bgColor === color
+                    ? `3px solid ${theme.palette.primary.main}`
+                    : "2px solid transparent",
+                transition: "border-color 0.2s",
               }}
-              className="w-10 h-10 rounded-full transition"
             />
           ))}
-        </div>
+        </Box>
 
-        {/* Пользовательские пресеты с удалением */}
-        <div className="flex flex-wrap gap-3 items-center">
-          {userPresets.map(color => (
-            <div key={color} className="relative">
-              <button
-                onClick={() => setBgColor(color)}
-                style={{
-                  backgroundColor: color,
-                  border: `2px solid ${bgColor === color ? theme.palette.primary.main : 'transparent'}`,
-                }}
-                className="w-10 h-10 rounded-full transition"
-              />
-              <button
-                onClick={() => removeUserPreset(color)}
-                className="absolute -top-1 -right-1 rounded-full w-4 h-4 flex items-center justify-center text-xs"
-                style={{
-                  backgroundColor: theme.palette.background.paper,
-                  color: theme.palette.error.main,
-                  border: `1px solid ${theme.palette.divider}`,
-                }}
-              >
-                &minus;
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={onAddColorClick}
-            className="px-3 py-1 rounded transition"
-            style={{
-              border: `1px solid ${theme.palette.divider}`,
-              backgroundColor: theme.palette.action.hover,
-              color: theme.palette.text.primary,
-            }}
-          >
-            Добавить цвет
-          </button>
-        </div>
-
-        {/* Цветовой пикер поверх */}
-        {showPicker && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-            <div
-              className="rounded-lg p-4 space-y-4"
-              style={{
-                backgroundColor: theme.palette.background.paper,
-                border: `1px solid ${theme.palette.divider}`,
+        {/* Пользовательские пресеты */}
+        {userPresets.length > 0 && (
+          <Box sx={{ mb: 3 }}>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                mb: 1,
+                color: theme.palette.text.secondary,
               }}
             >
-              <HexColorPicker color={tempPickerColor} onChange={setTempPickerColor} />
-              <div className="flex justify-end space-x-2">
-                <NavButton onClick={cancelPicker}>Отмена</NavButton>
-                <NavButton onClick={confirmPicker}>OK</NavButton>
-              </div>
-            </div>
-          </div>
+              Мои цвета
+            </Typography>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
+              {userPresets.map((color) => (
+                <Box
+                  key={color}
+                  sx={{ position: "relative" }}
+                >
+                  <Box
+                    onClick={() => setBgColor(color)}
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "50%",
+                      bgcolor: color,
+                      cursor: "pointer",
+                      border:
+                        bgColor === color
+                          ? `3px solid ${theme.palette.primary.main}`
+                          : "2px solid transparent",
+                      transition: "border-color 0.2s",
+                    }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={() => removeUserPreset(color)}
+                    sx={{
+                      position: "absolute",
+                      top: -6,
+                      right: -6,
+                      width: 18,
+                      height: 18,
+                      bgcolor: theme.palette.background.paper,
+                      color: theme.palette.error.main,
+                      border: `1px solid ${theme.palette.divider}`,
+                      "&:hover": { bgcolor: theme.palette.action.hover },
+                    }}
+                  >
+                    <CloseIcon sx={{ fontSize: 12 }} />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          </Box>
         )}
 
-        {/* Кнопки действия */}
-        <div className="flex justify-end space-x-3 pt-4">
-          <NavButton onClick={onClose}>Отмена</NavButton>
-          <NavButton onClick={() => onSave({ title, bgColor })}>Сохранить</NavButton>
-        </div>
-      </div>
-    </div>
+        {/* Добавить новый цвет */}
+        <Button
+          onClick={onAddColorClick}
+          variant="outlined"
+          sx={{
+            borderRadius: "50px",
+            textTransform: "none",
+            fontWeight: 600,
+            color: theme.palette.text.primary,
+            borderColor: theme.palette.divider,
+            backgroundColor: theme.palette.action.hover,
+            "&:hover": { backgroundColor: theme.palette.action.selected },
+          }}
+        >
+          Добавить цвет
+        </Button>
+
+        {/* Цветовой пикер */}
+        {showPicker && (
+          <Box
+            sx={{
+              position: "fixed",
+              inset: 0,
+              bgcolor: "rgba(0,0,0,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1200,
+            }}
+          >
+            <Box
+              sx={{
+                bgcolor: theme.palette.background.paper,
+                borderRadius: "16px",
+                p: 3,
+                border: `1px solid ${theme.palette.divider}`,
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+              }}
+            >
+              <HexColorPicker
+                color={tempPickerColor}
+                onChange={setTempPickerColor}
+              />
+              <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                <Button
+                  onClick={cancelPicker}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: 500,
+                    borderRadius: "8px",
+                  }}
+                >
+                  Отмена
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={confirmPicker}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: 600,
+                    borderRadius: "8px",
+                  }}
+                >
+                  ОК
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ pt: 2 }}>
+        <Button
+          onClick={onClose}
+          sx={{
+            textTransform: "none",
+            borderRadius: "50px",
+            color: theme.palette.text.primary,
+          }}
+        >
+          Отмена
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          sx={{
+            textTransform: "none",
+            borderRadius: "50px",
+            fontWeight: 600,
+          }}
+        >
+          Сохранить
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
