@@ -18,12 +18,16 @@ import { RoomSettingsModal } from "../components/RoomSettingsModal";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "@mui/material/styles";
 
+import { ExpandMore, Add } from "@mui/icons-material";
+import { motion, AnimatePresence } from "framer-motion";
+
 import {
   Box,
   Typography,
   IconButton,
   Tooltip,
   Paper,
+  Button,
 } from "@mui/material";
 import { EditOutlined, DeleteOutline } from "@mui/icons-material";
 
@@ -300,6 +304,18 @@ export function RoomPage() {
       .catch(() => alert("Не удалось удалить сообщение"));
   };
 
+
+  // 🔹 Просмотр изображений
+const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+useEffect(() => {
+  const handleEsc = (e: KeyboardEvent) => {
+    if (e.key === "Escape") setImagePreview(null);
+  };
+  window.addEventListener("keydown", handleEsc);
+  return () => window.removeEventListener("keydown", handleEsc);
+}, []);
+
   // ---------------- RENDER -----------------
 
   return (
@@ -328,6 +344,291 @@ export function RoomPage() {
         compact={showChat}
         isTeacher={isTeacher}
       />
+
+      {/* === Область "Написать сообщение" под шапкой === */}
+<Box
+  sx={{
+    mt: 3,
+    mx: { xs: 2, md: 3 },
+  }}
+>
+  <AnimatePresence initial={false} mode="popLayout">
+    {!composerOpen ? (
+      // 🔹 Свернутая область — просто карточка "Написать сообщение"
+      <motion.div
+        key="collapsed-composer"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{
+          type: "spring",
+          stiffness: 180,
+          damping: 16,
+          mass: 0.9,
+        }}
+      >
+        <Box
+          onClick={() => setComposerOpen(true)}
+          sx={{
+            cursor: "pointer",
+            borderRadius: "20px",
+            p: 2.5,
+            textAlign: "center",
+            border: `1px solid ${theme.palette.divider}`,
+            backgroundColor:
+              theme.palette.mode === "dark"
+                ? "#2b2b2b"
+                : theme.palette.background.paper,
+            boxShadow:
+              theme.palette.mode === "dark"
+                ? "0 2px 8px rgba(0,0,0,0.6)"
+                : "0 2px 8px rgba(0,0,0,0.08)",
+            color: theme.palette.text.secondary,
+            fontWeight: 500,
+            fontSize: "0.95rem",
+            "&:hover": {
+              backgroundColor:
+                theme.palette.mode === "dark"
+                  ? "#3a3a3a"
+                  : theme.palette.action.hover,
+              color: theme.palette.text.primary,
+              boxShadow:
+                theme.palette.mode === "dark"
+                  ? "0 4px 12px rgba(0,0,0,0.8)"
+                  : "0 4px 12px rgba(0,0,0,0.15)",
+            },
+            transition:
+              "background-color .3s cubic-bezier(0.25,1,0.5,1), box-shadow .3s ease, color .3s ease",
+          }}
+        >
+          ✏️ Написать сообщение
+        </Box>
+      </motion.div>
+    ) : (
+      // 🔹 Развернутая форма — теперь с симметричной плавной анимацией закрытия
+      <motion.div
+        key="expanded-composer"
+        initial={{ height: 0, opacity: 0, y: -12, scaleY: 0.97 }}
+        animate={{
+          height: "auto",
+          opacity: 1,
+          y: 0,
+          scaleY: 1,
+          transition: {
+            type: "spring",
+            stiffness: 160,
+            damping: 18,
+            mass: 0.9,
+          },
+        }}
+        exit={{
+          height: 0,
+          opacity: 0,
+          y: -12,
+          scaleY: 0.97,
+          transition: {
+            type: "spring",
+            stiffness: 160,
+            damping: 22, // 🔹 чуть выше демпфирование для плавности
+            mass: 0.9,
+            duration: 0.6, // 🔹 лёгкое замедление
+          },
+        }}
+        style={{
+          overflow: "hidden",
+          borderRadius: "20px",
+          transformOrigin: "top center",
+        }}
+      >
+        <Box
+          sx={{
+            borderRadius: "20px",
+            backgroundColor: theme.palette.background.paper,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow:
+              theme.palette.mode === "dark"
+                ? "0 4px 16px rgba(0,0,0,0.7)"
+                : "0 4px 16px rgba(0,0,0,0.15)",
+            overflow: "hidden",
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              sendMaterial(e);
+              setComposerOpen(false);
+            }}
+          >
+            {/* Верхняя часть с редактором */}
+            <Box sx={{ p: 3, pb: 5 }}>
+              <Box
+                sx={{
+                  border: `1px solid ${theme.palette.divider}`,
+                  borderRadius: "16px",
+                  overflow: "hidden",
+                  backgroundColor: theme.palette.background.paper,
+                  boxShadow:
+                    theme.palette.mode === "dark"
+                      ? "inset 0 0 0 1px rgba(255,255,255,0.05)"
+                      : "0 1px 3px rgba(0,0,0,0.05)",
+                  "& .ql-container": { border: "none !important" },
+                  "& .ql-toolbar": {
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                  },
+                }}
+              >
+                <ReactQuill
+                  value={text}
+                  onChange={setText}
+                  placeholder="Введите сообщение..."
+                  style={{ height: 180 }}
+                  modules={{
+                    toolbar: [
+                      ["bold", "italic", "underline", "strike"],
+                      [{ list: "ordered" }, { list: "bullet" }],
+                      ["link"],
+                      ["clean"],
+                    ],
+                  }}
+                />
+              </Box>
+
+              {/* Прикрепленные файлы */}
+              {files.length > 0 && (
+                <Box
+                  sx={{
+                    mt: 2.5,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 1.2,
+                  }}
+                >
+                  {files.map((file, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        px: 1.8,
+                        py: 0.8,
+                        borderRadius: "9999px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        backgroundColor: theme.palette.action.hover,
+                        color: theme.palette.text.secondary,
+                        fontSize: "0.85rem",
+                        boxShadow:
+                          theme.palette.mode === "dark"
+                            ? "0 1px 3px rgba(0,0,0,0.7)"
+                            : "0 1px 3px rgba(0,0,0,0.1)",
+                      }}
+                    >
+                      <span>{file.name}</span>
+                      <Box<'button'>
+                        component="button"
+                        type="button"
+                        onClick={() =>
+                          setFiles((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                        sx={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                          color: theme.palette.error.main,
+                          "&:hover": { opacity: 0.8 },
+                        }}
+                      >
+                        ✕
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+
+            {/* Нижняя панель */}
+            <Box
+              sx={{
+                borderTop: `1px solid ${theme.palette.divider}`,
+                p: 3,
+                pt: 2,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 2,
+              }}
+            >
+              <Button
+                onClick={() => setComposerOpen(false)}
+                startIcon={
+                  <ExpandMore
+                    sx={{
+                      transform: composerOpen ? "rotate(180deg)" : "rotate(0deg)",
+                      transition: "transform 0.3s cubic-bezier(0.25,1.25,0.5,1)",
+                    }}
+                  />
+                }
+                variant="outlined"
+                sx={{
+                  borderRadius: "999px",
+                  px: 2.8,
+                  py: 0.9,
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  textTransform: "none",
+                }}
+              >
+                Свернуть
+              </Button>
+
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <Button
+                  component="label"
+                  variant="outlined"
+                  sx={{
+                    borderRadius: "999px",
+                    px: 2.5,
+                    py: 0.8,
+                    fontSize: "0.9rem",
+                    textTransform: "none",
+                    fontWeight: 500,
+                  }}
+                >
+                  Прикрепить файл
+                  <input
+                    hidden
+                    multiple
+                    type="file"
+                    onChange={(e) =>
+                      setFiles(Array.from(e.target.files || []))
+                    }
+                  />
+                </Button>
+
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={!text && files.length === 0}
+                  sx={{
+                    borderRadius: "999px",
+                    px: 3,
+                    py: 0.8,
+                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    textTransform: "none",
+                  }}
+                >
+                  Отправить
+                </Button>
+              </Box>
+            </Box>
+          </form>
+        </Box>
+      </motion.div>
+    )}
+  </AnimatePresence>
+</Box>
+
 
       {/* Модалка "код комнаты" (полноэкранный показ кода) */}
       {codeOverlayOpen && (
@@ -670,17 +971,19 @@ export function RoomPage() {
 
             {/* список материалов */}
             <Box
-              sx={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: "auto",
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                pt: 3,
-                pb: 10, // дополнительный отступ над FAB
-              }}
-            >
+  sx={{
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    pt: 3,
+    pb: composerOpen ? "0px" : "0px", // 🔹 постоянный нижний отступ 20px
+    transition: "padding-bottom 0.3s ease",
+    scrollPaddingBottom: "0px", // чтобы auto-scroll не упирался в край
+  }}
+>
               {messages
                 .slice()
                 .reverse()
@@ -755,11 +1058,17 @@ export function RoomPage() {
                         ].includes(ext);
 
                         return (
-                          <a
+                          <Box
                             key={att.id}
-                            href={url}
-                            download
-                            style={{ display: "inline-block" }}
+                            onClick={() => setImagePreview(url)}
+                            sx={{
+                              display: "inline-block",
+                              cursor: "zoom-in",
+                              "&:hover img": {
+                                transform: "scale(1.03)",
+                              },
+                              transition: "transform 0.2s ease",
+                            }}
                           >
                             {isImg ? (
                               <Box<'img'>
@@ -771,7 +1080,8 @@ export function RoomPage() {
                                   maxWidth: "100%",
                                   borderRadius: "12px",
                                   border: `1px solid ${theme.palette.divider}`,
-                                  cursor: "pointer",
+                                  cursor: "zoom-in",
+                                  transition: "transform 0.25s ease",
                                 }}
                               />
                             ) : (
@@ -790,7 +1100,9 @@ export function RoomPage() {
                                 📄 {decodeURIComponent(att.url)}
                               </Typography>
                             )}
-                          </a>
+
+
+                          </Box>
                         );
                       })}
                     </Box>
@@ -844,272 +1156,9 @@ export function RoomPage() {
               <div ref={bottomRef} />
             </Box>
 
+
             {/* FAB — только для учителя, только в материалах, только если композер закрыт */}
-            {isTeacher && !showChat && !composerOpen && (
-              <Box<'button'>
-                component="button"
-                onClick={() => setComposerOpen(true)}
-                aria-label="Открыть отправку сообщения"
-                title="Отправить сообщение"
-                sx={{
-                  position: "fixed",
-                  right: 24,
-                  bottom: 24,
-                  zIndex: 30,
-                  width: 56,
-                  height: 56,
-                  borderRadius: "50%",
-                  border: "none",
-                  backgroundColor: theme.palette.primary.main,
-                  color: theme.palette.primary.contrastText,
-                  fontSize: "2rem",
-                  fontWeight: 500,
-                  lineHeight: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  boxShadow:
-                    theme.palette.mode === "dark"
-                      ? "0 4px 12px rgba(0,0,0,0.7)"
-                      : "0 4px 12px rgba(0,0,0,0.15)",
-                  transition: "background-color 0.25s ease",
-                  "&:hover": {
-                    backgroundColor: theme.palette.primary.dark,
-                  },
-                }}
-              >
-                +
-              </Box>
-            )}
 
-            {/* ВЫЕЗЖАЮЩИЙ КОМПОЗЕР (отправка материалов). Он остаётся управляемый твоими состояниями */}
-            {isTeacher && !showChat && (
-              <Box
-                sx={{
-                  position: "fixed",
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  zIndex: 20,
-                  transform: composerOpen
-                    ? "translateY(0)"
-                    : "translateY(110%)",
-                  opacity: composerOpen ? 1 : 0,
-                  transition: "all 0.3s ease",
-                }}
-              >
-                <form
-                  onSubmit={(e) => {
-                    sendMaterial(e);
-                    setComposerOpen(false);
-                  }}
-                  className="w-full"
-                >
-                  {/* Верхняя часть с редактором */}
-                  <Box
-                    sx={{
-                      mx: "10px",
-                      borderTopLeftRadius: "16px",
-                      borderTopRightRadius: "16px",
-                      border: `1px solid ${theme.palette.divider}`,
-                      backgroundColor: theme.palette.background.paper,
-                      color: theme.palette.text.primary,
-                      px: 2,
-                      pt: 3,
-                      pb: 4,
-                    }}
-                  >
-                    <Box sx={{ height: "180px" }}>
-                      <ReactQuill
-                        value={text}
-                        onChange={setText}
-                        modules={{
-                          toolbar: [
-                            ["bold", "italic", "underline", "strike"],
-                            [{ header: 1 }, { header: 2 }],
-                            [{ list: "ordered" }, { list: "bullet" }],
-                            [{ size: ["small", false, "large", "huge"] }],
-                            ["link"],
-                            ["clean"],
-                          ],
-                        }}
-                        formats={[
-                          "header",
-                          "bold",
-                          "italic",
-                          "underline",
-                          "strike",
-                          "list",
-                          "bullet",
-                          "size",
-                          "link",
-                        ]}
-                        placeholder="Введите сообщение..."
-                        className="h-full"
-                      />
-                    </Box>
-
-                    {files.length > 0 && (
-                      <Box
-                        sx={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 1,
-                          my: 2,
-                        }}
-                      >
-                        {files.map((file, idx) => (
-                          <Box
-                            key={idx}
-                            sx={{
-                              px: 1.5,
-                              py: 0.5,
-                              borderRadius: "10px",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 1,
-                              backgroundColor:
-                                theme.palette.action.hover,
-                              color: theme.palette.text.secondary,
-                              fontSize: "0.75rem",
-                              lineHeight: 1.2,
-                              wordBreak: "break-all",
-                            }}
-                          >
-                            <span>{file.name}</span>
-                            <Box<'button'>
-                              component="button"
-                              type="button"
-                              onClick={() =>
-                                setFiles((prev) =>
-                                  prev.filter((_, i) => i !== idx)
-                                )
-                              }
-                              sx={{
-                                border: "none",
-                                background: "transparent",
-                                cursor: "pointer",
-                                fontSize: "0.8rem",
-                                lineHeight: 1,
-                                color: theme.palette.error.main,
-                              }}
-                            >
-                              ✕
-                            </Box>
-                          </Box>
-                        ))}
-                      </Box>
-                    )}
-                  </Box>
-
-                  {/* Нижняя панель кнопок */}
-                  <Box
-                    sx={{
-                      mx: "10px",
-                      borderBottomLeftRadius: "16px",
-                      borderBottomRightRadius: "16px",
-                      borderLeft: `1px solid ${theme.palette.divider}`,
-                      borderRight: `1px solid ${theme.palette.divider}`,
-                      borderBottom: `1px solid ${theme.palette.divider}`,
-                      backgroundColor: theme.palette.background.paper,
-                      color: theme.palette.text.primary,
-                      px: 2,
-                      py: 2,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      flexWrap: "wrap",
-                      rowGap: 1.5,
-                    }}
-                  >
-                    <Box<'button'>
-                      component="button"
-                      type="button"
-                      onClick={() => setComposerOpen(false)}
-                      sx={{
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        fontSize: "0.8rem",
-                        fontWeight: 500,
-                        color: theme.palette.text.secondary,
-                        px: 1,
-                        py: 1,
-                      }}
-                    >
-                      Свернуть
-                    </Box>
-
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: 1.5,
-                      }}
-                    >
-                      <input
-                        id="roomFiles"
-                        type="file"
-                        className="hidden"
-                        multiple
-                        onChange={(e) =>
-                          setFiles(Array.from(e.target.files || []))
-                        }
-                      />
-
-                      <Box<'label'>
-                        component="label"
-                        htmlFor="roomFiles"
-                        sx={{
-                          cursor: "pointer",
-                          borderRadius: "999px",
-                          px: 2,
-                          py: 1,
-                          fontSize: "0.9rem",
-                          fontWeight: 500,
-                          backgroundColor:
-                            theme.palette.action.hover,
-                          color: theme.palette.text.primary,
-                          "&:hover": {
-                            backgroundColor:
-                              theme.palette.action.selected,
-                          },
-                        }}
-                      >
-                        Прикрепить файл
-                      </Box>
-
-                      <Box<'button'>
-                        component="button"
-                        type="submit"
-                        disabled={!text && files.length === 0}
-                        sx={{
-                          border: "none",
-                          cursor: !text && files.length === 0 ? "default" : "pointer",
-                          opacity: !text && files.length === 0 ? 0.5 : 1,
-                          borderRadius: "999px",
-                          px: 3,
-                          py: 1,
-                          fontSize: "0.9rem",
-                          fontWeight: 600,
-                          backgroundColor: theme.palette.primary.main,
-                          color: theme.palette.primary.contrastText,
-                          "&:hover": {
-                            backgroundColor: !text && files.length === 0
-                              ? theme.palette.primary.main
-                              : theme.palette.primary.dark,
-                          },
-                        }}
-                      >
-                        Отправить
-                      </Box>
-                    </Box>
-                  </Box>
-                </form>
-              </Box>
-            )}
           </Box>
         )}
       </Box>
@@ -1137,6 +1186,49 @@ export function RoomPage() {
           onSave={onSaveEdit}
         />
       )}
+
+      {/* === Модальное окно просмотра изображения === */}
+{imagePreview && (
+  <Box
+    onClick={() => setImagePreview(null)}
+    sx={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 1300,
+      backgroundColor: "rgba(0,0,0,0.85)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      cursor: "zoom-out",
+      p: 3,
+      backdropFilter: "blur(3px)",
+      animation: "fadeIn 0.3s ease",
+      "@keyframes fadeIn": {
+        from: { opacity: 0 },
+        to: { opacity: 1 },
+      },
+    }}
+  >
+    <Box
+      component={"img" as React.ElementType}
+      src={imagePreview}
+      alt="preview"
+      sx={{
+        maxWidth: "95%",
+        maxHeight: "90vh",
+        borderRadius: "16px",
+        boxShadow:
+          theme.palette.mode === "dark"
+            ? "0 0 30px rgba(0,0,0,0.8)"
+            : "0 0 30px rgba(0,0,0,0.3)",
+        transition: "transform 0.3s ease",
+        transform: "scale(1)",
+        "&:hover": { transform: "scale(1.02)" },
+        cursor: "zoom-out",
+      }}
+    />
+  </Box>
+)}
     </Box>
   );
 }
