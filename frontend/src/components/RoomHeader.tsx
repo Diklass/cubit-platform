@@ -1,3 +1,4 @@
+// src/components/rooms/RoomHeader.tsx
 import React from "react";
 import {
   Box,
@@ -11,21 +12,23 @@ import {
   Fullscreen,
   ChatBubbleOutline,
   SettingsOutlined,
+  ArrowBackIosNewRounded,
 } from "@mui/icons-material";
+import { useLocation, useNavigate } from "react-router-dom";
 
-// Функция для вычисления яркости цвета
+// === Функции цвета ===
 function getLuminance(hex: string): number {
-  const rgb = hex
-    .replace("#", "")
-    .match(/.{1,2}/g)
-    ?.map((x) => parseInt(x, 16) / 255) || [0, 0, 0];
+  const rgb =
+    hex
+      .replace("#", "")
+      .match(/.{1,2}/g)
+      ?.map((x) => parseInt(x, 16) / 255) || [0, 0, 0];
   const [r, g, b] = rgb.map((v) =>
     v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
   );
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-// Функция для определения оптимального контрастного цвета
 function getContrastColor(bgColor: string, light = "#FFFFFF", dark = "#1C1B1F") {
   try {
     const lum = getLuminance(bgColor);
@@ -45,6 +48,7 @@ interface RoomHeaderProps {
   onChat: () => void;
   compact?: boolean;
   isTeacher?: boolean;
+  isChatOpen?: boolean; // 🟢 добавлено
 }
 
 export const RoomHeader: React.FC<RoomHeaderProps> = ({
@@ -57,12 +61,14 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
   onChat,
   compact = false,
   isTeacher = false,
+  isChatOpen = false, // 🟢 добавлено
 }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
 
-  // 🎨 Динамически вычисляем контрастный цвет (на основе фона)
   const iconColor = getContrastColor(bgColor || theme.palette.primary.main);
   const textColor = iconColor;
+
 
   // === COMPACT HEADER ===
   if (compact) {
@@ -111,57 +117,85 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
             {name}
           </Typography>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Tooltip title="Чат / К материалам">
-              <IconButton
-                size="small"
-                onClick={onChat}
-                sx={{
-                  bgcolor: "rgba(255,255,255,0.25)",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
-                  boxShadow: 1,
-                }}
-              >
-                <ChatBubbleOutline sx={{ color: iconColor, fontSize: 20 }} />
-              </IconButton>
-            </Tooltip>
+          {/* Если в чате — показываем только кнопку “Вернуться в комнаты” */}
+         {isChatOpen ? (
+  <Button
+    onClick={onChat} // ✅ просто закрываем чат, без перехода по navigate
+    variant="contained"
+    disableElevation
+    sx={{
+      borderRadius: "999px",
+      px: 2.5,
+      py: 0.8,
+      fontWeight: 600,
+      textTransform: "none",
+      fontSize: "0.9rem",
+      backgroundColor: "rgba(255,255,255,0.25)",
+      color: iconColor,
+      "&:hover": { backgroundColor: "rgba(255,255,255,0.4)" },
+      boxShadow:
+        theme.palette.mode === "dark"
+          ? "0 2px 6px rgba(0,0,0,0.8)"
+          : "0 2px 6px rgba(0,0,0,0.15)",
+    }}
+    startIcon={<ArrowBackIosNewRounded sx={{ fontSize: 18 }} />}
+  >
+    Вернуться в комнату
+  </Button>
+) : (
 
-            <Tooltip title="На весь экран">
-              <IconButton
-                size="small"
-                onClick={onFullscreen}
-                sx={{
-                  bgcolor: "rgba(255,255,255,0.25)",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
-                  boxShadow: 1,
-                }}
-              >
-                <Fullscreen sx={{ color: iconColor, fontSize: 20 }} />
-              </IconButton>
-            </Tooltip>
-
-            {isTeacher && (
-              <Tooltip title="Настройки">
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Tooltip title="Чат / К материалам">
                 <IconButton
                   size="small"
-                  onClick={onEdit}
+                  onClick={onChat}
                   sx={{
                     bgcolor: "rgba(255,255,255,0.25)",
                     "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
                     boxShadow: 1,
                   }}
                 >
-                  <SettingsOutlined sx={{ color: iconColor, fontSize: 20 }} />
+                  <ChatBubbleOutline sx={{ color: iconColor, fontSize: 20 }} />
                 </IconButton>
               </Tooltip>
-            )}
-          </Box>
+
+              <Tooltip title="На весь экран">
+                <IconButton
+                  size="small"
+                  onClick={onFullscreen}
+                  sx={{
+                    bgcolor: "rgba(255,255,255,0.25)",
+                    "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
+                    boxShadow: 1,
+                  }}
+                >
+                  <Fullscreen sx={{ color: iconColor, fontSize: 20 }} />
+                </IconButton>
+              </Tooltip>
+
+              {isTeacher && (
+                <Tooltip title="Настройки">
+                  <IconButton
+                    size="small"
+                    onClick={onEdit}
+                    sx={{
+                      bgcolor: "rgba(255,255,255,0.25)",
+                      "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
+                      boxShadow: 1,
+                    }}
+                  >
+                    <SettingsOutlined sx={{ color: iconColor, fontSize: 20 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
+          )}
         </Box>
       </Box>
     );
   }
 
-  // === EXPANDED HEADER ===
+  // === EXPANDED HEADER (без изменений) ===
   return (
     <Box
       sx={{
@@ -182,7 +216,6 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
             : "0 4px 12px rgba(0,0,0,0.15)",
       }}
     >
-      {/* Название комнаты */}
       <Typography
         variant="h4"
         sx={{
@@ -196,7 +229,6 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
         {name}
       </Typography>
 
-      {/* Код курса */}
       <Box
         sx={{
           position: "relative",
@@ -216,28 +248,14 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
         >
           Код курса: {code}
         </Typography>
-
-        <Tooltip title="На весь экран">
-          <IconButton
-            size="small"
-            onClick={onFullscreen}
-            sx={{
-              bgcolor: "rgba(255,255,255,0.25)",
-              "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
-            }}
-          >
-            <Fullscreen sx={{ color: iconColor, fontSize: 22 }} />
-          </IconButton>
-        </Tooltip>
       </Box>
 
-      {/* Настройки */}
       {isTeacher && (
         <Box
           sx={{
             position: "absolute",
-            top: 8,
-            right: 8,
+            top: 20,
+            right: 20,
             display: "flex",
             alignItems: "center",
             gap: 1,
@@ -258,7 +276,6 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
         </Box>
       )}
 
-      {/* Кнопка чата */}
       <Button
         onClick={onChat}
         variant="contained"
@@ -278,9 +295,7 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
           fontWeight: 600,
           textTransform: "none",
           fontSize: "1rem",
-          "&:hover": {
-            backgroundColor: "rgba(255,255,255,0.4)",
-          },
+          "&:hover": { backgroundColor: "rgba(255,255,255,0.4)" },
           boxShadow:
             theme.palette.mode === "dark"
               ? "0 4px 12px rgba(0,0,0,0.8)"

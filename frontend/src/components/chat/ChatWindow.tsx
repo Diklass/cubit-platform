@@ -1,17 +1,17 @@
-// src/components/chat/ChatWindow.tsx
-import React, { useEffect, useRef, useState } from 'react';
-import api from '../../api';
-import DOMPurify from 'dompurify';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
-import { useAuth } from '../../auth/AuthContext';
-import EditMessageModal from './EditMessageModal';
-import { useChatSocket, ChatMessage } from '../../hooks/useChatSocket';
+import React, { useEffect, useRef, useState } from "react";
+import api from "../../api";
+import DOMPurify from "dompurify";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
+import { useAuth } from "../../auth/AuthContext";
+import EditMessageModal from "./EditMessageModal";
+import { useChatSocket, ChatMessage } from "../../hooks/useChatSocket";
 import { useTheme } from "@mui/material/styles";
+import { motion, AnimatePresence } from "framer-motion";
+import { Box, Typography, Button, IconButton } from "@mui/material";
 
-
-import editIcon from '../../assets/icons/edit.svg';
-import deleteIcon from '../../assets/icons/delete.svg';
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 interface Props {
   sessionId: string;
@@ -20,446 +20,477 @@ interface Props {
 
 export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
   const { user } = useAuth();
-
-  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
-  const [editText, setEditText] = useState('');
-  const [editRemoveIds, setEditRemoveIds] = useState<string[]>([]);
-  const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
-  const [dragCounter, setDragCounter] = useState(0);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
   const theme = useTheme();
 
-  const {
-    messages,
-    setMessages,
-    socket,
-    typing,
-    emitTyping,
-    emitStopTyping,
-    emitRead,
-  } = useChatSocket(sessionId, console.error);
-
-  const [text, setText] = useState('');
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editRemoveIds, setEditRemoveIds] = useState<string[]>([]);
+  const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
+  const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [composerOpen, setComposerOpen] = useState(false);
 
-  useEffect(() => {
-    if (!messages.length || !user?.id) return;
-    const unread = messages
-      .filter(m => !(m.readBy || []).includes(user.id))
-      .map(m => m.id);
-    if (unread.length) emitRead(unread);
-  }, [messages, user?.id]);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
+  const { messages, setMessages, socket, typing, emitTyping, emitStopTyping } =
+    useChatSocket(sessionId, console.error);
+
+  // === Получение истории сообщений ===
   useEffect(() => {
-    api.get<ChatMessage[]>(`/chats/${sessionId}/messages`)
-      .then(res => {
+    api
+      .get<ChatMessage[]>(`/chats/${sessionId}/messages`)
+      .then((res) => {
         setMessages(res.data);
-        setUnreadCounts(prev => ({ ...prev, [sessionId]: 0 }));
+        setUnreadCounts((u) => ({ ...u, [sessionId]: 0 }));
         setTimeout(() => {
-          if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }
-        }, 0);
+          scrollRef.current?.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: "instant",
+          });
+        }, 50);
       })
       .catch(console.error);
   }, [sessionId, setMessages, setUnreadCounts]);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, typing]);
+  // === Автопрокрутка при новых сообщениях ===
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
 
-    const onDragEnter = (e: DragEvent) => {
-      if (editingMessage) return;
-      e.preventDefault();
-      setDragCounter(c => c + 1);
-    };
-    const onDragOver = (e: DragEvent) => {
-      if (editingMessage) return;
-      e.preventDefault();
-    };
-    const onDragLeave = (e: DragEvent) => {
-      if (editingMessage) return;
-      e.preventDefault();
-      setDragCounter(c => c - 1);
-    };
-    const onDrop = (e: DragEvent) => {
-      if (editingMessage) return;
-      e.preventDefault();
-      setDragCounter(0);
-      const dropped = Array.from(e.dataTransfer?.files || []).slice(0, 10 - files.length);
-      if (dropped.length) setFiles(prev => [...prev, ...dropped]);
-    };
-
-    el.addEventListener('dragenter', onDragEnter);
-    el.addEventListener('dragover', onDragOver);
-    el.addEventListener('dragleave', onDragLeave);
-    el.addEventListener('drop', onDrop);
-    return () => {
-      el.removeEventListener('dragenter', onDragEnter);
-      el.removeEventListener('dragover', onDragOver);
-      el.removeEventListener('dragleave', onDragLeave);
-      el.removeEventListener('drop', onDrop);
-    };
-  }, [files, editingMessage]);
-
+  // === Отправка сообщения ===
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim() && files.length === 0) return;
 
-    const now = new Date().toISOString();
     const tempId = `temp-${Date.now()}`;
     const tempMsg: ChatMessage = {
       id: tempId,
       isTemp: true,
-      text: text.trim(),
+      text,
       author: { id: user!.id, email: user!.email },
       attachments: files.map((f, i) => ({
         id: `temp-${tempId}-${i}`,
         url: URL.createObjectURL(f),
       })),
-      createdAt: now,
+      createdAt: new Date().toISOString(),
     };
-    setMessages(prev => [...prev, tempMsg]);
+    setMessages((p) => [...p, tempMsg]);
 
     const fd = new FormData();
-    if (text.trim()) fd.append('text', text.trim());
-    files.forEach(f => fd.append('files', f));
+    if (text.trim()) fd.append("text", text.trim());
+    files.forEach((f) => fd.append("files", f));
 
     setUploading(true);
     try {
-      const res = await api.post<ChatMessage>(`/chats/${sessionId}/messages`, fd, {
-        onUploadProgress: evt => {
-          const pct = Math.round((evt.loaded / (evt.total ?? 1)) * 100);
-          setProgress(pct);
-        },
-        headers: { Accept: 'application/json' },
-      });
-      const realMsg = res.data;
-      setMessages(prev => {
-        const withoutTemp = prev.filter(m => m.id !== tempId);
-        const i = withoutTemp.findIndex(m => m.id === realMsg.id);
-        if (i >= 0) {
-          const copy = withoutTemp.slice();
-          copy[i] = realMsg;
-          return copy;
+      const res = await api.post<ChatMessage>(
+        `/chats/${sessionId}/messages`,
+        fd,
+        {
+          onUploadProgress: (evt) => {
+            setProgress(Math.round((evt.loaded / (evt.total ?? 1)) * 100));
+          },
         }
-        return [...withoutTemp, realMsg];
-      });
-      setText('');
+      );
+      const realMsg = res.data;
+      setMessages((p) =>
+        [...p.filter((m) => m.id !== tempId), realMsg].sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+      );
+      setText("");
       setFiles([]);
-    } catch (err) {
-      setMessages(prev => prev.filter(m => m.id !== tempId));
-      console.error('Ошибка отправки (HTTP):', err);
-      alert('Не удалось отправить сообщение');
+      setComposerOpen(false);
+    } catch (e) {
+      console.error("Send error", e);
+      alert("Не удалось отправить сообщение");
     } finally {
       setUploading(false);
       setProgress(0);
     }
   };
 
+  const deleteMsg = (id: string) =>
+    socket.emit("chatDeleted", { sessionId, messageId: id });
+
   const onStartEdit = (m: ChatMessage) => {
     setEditingMessage(m);
-    setEditText(m.text || '');
+    setEditText(m.text ?? "");
     setEditRemoveIds([]);
     setEditNewFiles([]);
   };
 
   const onSaveEdit = async () => {
     if (!editingMessage) return;
-    if (editingMessage.id.startsWith('temp-')) { setEditingMessage(null); return; }
-
     const fd = new FormData();
-    fd.append('text', editText);
-    editRemoveIds.forEach(id => fd.append('removeAttachmentIds', id));
-    editNewFiles.forEach(f => fd.append('newFiles', f));
+    fd.append("text", editText);
+    editRemoveIds.forEach((id) => fd.append("removeAttachmentIds", id));
+    editNewFiles.forEach((f) => fd.append("newFiles", f));
 
     try {
-      const updated: ChatMessage = (await api.patch(
-        `/chats/${sessionId}/messages/${editingMessage.id}`,
-        fd,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      )).data;
-      setMessages(prev => prev.map(m => (m.id === updated.id ? updated : m)));
+      const updated: ChatMessage = (
+        await api.patch(`/chats/${sessionId}/messages/${editingMessage.id}`, fd)
+      ).data;
+      setMessages((p) => p.map((m) => (m.id === updated.id ? updated : m)));
       setEditingMessage(null);
-    } catch (err) {
-      console.error('Ошибка редактирования:', err);
-      alert('Не удалось обновить сообщение');
+    } catch (e) {
+      alert("Ошибка сохранения");
     }
   };
 
-  const deleteMsg = (id: string) => {
-    socket.emit('chatDeleted', { sessionId, messageId: id });
-  };
+  // === Отображение сообщений ===
+  // === Автопрокрутка при новых сообщениях ===
+useEffect(() => {
+  // Автоматически прокручиваем вниз, когда добавляется новое сообщение
+  const scrollArea = scrollRef.current;
+  if (!scrollArea) return;
+  scrollArea.scrollTo({
+    top: scrollArea.scrollHeight,
+    behavior: "smooth",
+  });
+}, [messages]);
 
-  const renderAttachment = (url: string, isMine: boolean) => {
-    const name = decodeURIComponent(url.split('-').slice(1).join('-'));
-    const ext = name.split('.').pop()?.toLowerCase();
-    const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext || '');
-    const isEncoded = /%[0-9A-Fa-f]{2}/.test(url);
-    const safeName = isEncoded ? url : encodeURIComponent(url);
-    const full = `http://localhost:3001/uploads/${safeName}`;
+// === Отображение сообщений ===
+const renderMsg = (m: ChatMessage) => {
+  const isMine = m.author?.id === user?.id;
+  const bg = isMine
+    ? theme.palette.primary.main
+    : theme.palette.background.paper;
+  const color = isMine
+    ? theme.palette.primary.contrastText
+    : theme.palette.text.primary;
 
-    return isImg ? (
-      <img
-        key={url}
-        src={full}
-        alt={name}
-        className="max-h-48 mt-2 rounded border"
-        crossOrigin="anonymous"
-      />
-    ) : (
-      <a
-        key={url}
-        href={full}
-        download
-        className={`${isMine ? 'text-white underline' : 'text-blue-600 underline'} mt-2 block`}
-      >
-        📄 {name}
-      </a>
-    );
-  };
-
-  const renderPreview = () => (
-    <div className="flex flex-wrap gap-2 mt-2">
-      {files.map((f, i) => (
-        <div key={i} className="bg-gray-100 px-2 py-1 rounded flex items-center space-x-2">
-          <span className="text-sm break-all">{f.name}</span>
-          <button
-            onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))}
-            className="text-red-500"
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-    </div>
-  );
+      const atts = m.attachments ?? [];
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full relative">
-      {dragCounter > 0 && (
-        <div className="absolute inset-0 bg-black/20 border-4 border-dashed border-indigo-600 z-10 flex items-center justify-center">
-          <span className="text-white text-lg">Перетащите файлы сюда</span>
-        </div>
-      )}
-
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-4 space-y-3 bg-m3-surf">
-        {messages.map((m) => {
-          const isMine = m.author?.id === user?.id;
-
-          return (
-            <div key={m.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={[
-                  'max-w-[88%]',
-                  'rounded-2xl',
-                  'px-5 py-4',
-                  'shadow-level1',
-                  'border',
-                  isMine
-                    ? 'bg-blue-600 text-white border-transparent self-end ml-auto'
-                    : 'bg-surface text-on-surface border-gray-200',
-                ].join(' ')}
-              >
-                {/* ВЕРХНЯЯ ПОЛОСА: время/автор слева, кнопки справа */}
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className={`text-xs ${isMine ? 'text-white/80' : 'text-gray-500'}`}>
-                    {m.author?.email ?? 'Гость'} — {new Date(m.createdAt).toLocaleString()}
-                    {m.updatedAt && m.updatedAt !== m.createdAt && (
-                      <span className="ml-2 italic opacity-70">(изменено)</span>
-                    )}
-                  </div>
-
-                  {isMine && !m.isTemp && !editingMessage && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => onStartEdit(m)}
-                        title="Редактировать"
-                        className={`p-1 rounded ${isMine ? 'hover:bg-white/20' : 'hover:bg-gray-200'}`}
-                      >
-                        <img src={editIcon} alt="Редактировать" className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteMsg(m.id)}
-                        title="Удалить"
-                        className={`p-1 rounded ${isMine ? 'hover:bg-white/20' : 'hover:bg-gray-200'}`}
-                      >
-                        <img src={deleteIcon} alt="Удалить" className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* ТЕКСТ */}
-                {m.text && (
-                  <div
-                    className={
-                      isMine
-                        ? 'text-[16px] leading-relaxed'
-                        : 'prose prose-sm max-w-none text-[16px] leading-relaxed'
-                    }
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(m.text) }}
-                  />
-                )}
-
-                {/* ВЛОЖЕНИЯ */}
-                {m.attachments?.map(att => {
-                  const filename = att.url;
-                  const isEncoded = /%[0-9A-Fa-f]{2}/.test(filename);
-                  const safeName = isEncoded ? filename : encodeURIComponent(filename);
-
-                  const src = att.url.startsWith('blob:')
-                    ? att.url
-                    : `http://localhost:3001/uploads/${safeName}`;
-
-                  const ext = (filename.split('.').pop() || '').toLowerCase();
-                  const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
-
-                  return isImg ? (
-                    <img
-                      key={att.id}
-                      src={src}
-                      alt=""
-                      className="max-h-48 mt-2 rounded border"
-                      crossOrigin="anonymous"
-                    />
-                  ) : (
-                    renderAttachment(att.url, isMine)
-                  );
-                })}
-
-                {m.readBy && m.readBy.length > 0 && (
-                  <div className={`mt-1 text-xs ${isMine ? 'text-white/80' : 'text-green-600'}`}>
-                    Прочитали: {m.readBy.length}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {typing && (
-          <div className="mx-1 bg-white px-3 py-1 rounded shadow text-sm italic text-gray-600">
-            Собеседник печатает…
-          </div>
-        )}
-      </div>
-
-      <form onSubmit={send} className="sticky bottom-0 w-full px-2 pt-1 pb-0 bg-transparent">
-  {/* Верхний блок: редактор + превью */}
-  <div
-    className="rounded-t-lg px-3 pt-5 pb-12 mx-[10px]"
-    style={{
-      backgroundColor: theme.palette.background.paper,
-      border: `1px solid ${theme.palette.divider}`,
-      color: theme.palette.text.primary,
-    }}
-  >
-    <div className="h-[180px]">
-      <ReactQuill
-        theme="snow"
-        value={text}
-        onChange={value => {
-          setText(value);
-          emitTyping();
-          clearTimeout((window as any).__stopTypingTimer);
-          (window as any).__stopTypingTimer = setTimeout(() => {
-            emitStopTyping();
-          }, 1000);
+    <motion.div
+      key={m.id}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+    >
+      <Box
+        sx={{
+          maxWidth: "80%",
+          p: 2.2,
+          borderRadius: "20px",
+          backgroundColor: bg,
+          color,
+          boxShadow:
+            theme.palette.mode === "dark"
+              ? "0 4px 16px rgba(0,0,0,0.7)"
+              : "0 4px 16px rgba(0,0,0,0.1)",
+          border: `1px solid ${isMine ? "transparent" : theme.palette.divider}`,
+          
         }}
-        modules={{
-          toolbar: [
-            ['bold','italic','underline','strike'],
-            [{header:1},{header:2}],
-            [{list:'ordered'},{list:'bullet'}],
-            [{size:['small',false,'large','huge']}],
-            ['link'],
-            ['clean']
-          ]
-        }}
-        className="h-full"
-        placeholder="Введите сообщение..."
-      />
-    </div>
-
-    {/* Превью вложений */}
-    {files.length > 0 && (
-      <div className="flex flex-wrap gap-2 my-2">
-        {files.map((file, idx) => (
-          <div
-            key={idx}
-            className="px-2 py-1 rounded-lg flex items-center space-x-1"
-            style={{
-              backgroundColor: theme.palette.action.hover,
-              color: theme.palette.text.secondary,
+      >
+        {/* Верхняя строка — автор и время */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            mb: 1,
+            gap: 1,
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: "0.75rem",
+              opacity: 0.8,
+              color,
             }}
           >
-            <span className="text-xs break-all">{file.name}</span>
-            <button
-              onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))}
-              className="text-red-500"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
+            {m.author?.email || "Гость"} —{" "}
+            {new Date(m.createdAt).toLocaleTimeString()}
+          </Typography>
 
-  {/* Нижний блок: кнопки */}
-  <div
-    className="rounded-b-lg px-3 py-2 mx-[10px] flex items-center justify-end space-x-4"
-    style={{
-      backgroundColor: theme.palette.background.paper,
-      border: `1px solid ${theme.palette.divider}`,
+          {isMine && (
+            <Box sx={{ display: "flex", gap: 0.5 }}>
+              <IconButton
+                onClick={() => onStartEdit(m)}
+                size="small"
+                title="Редактировать"
+                sx={{
+                  color: theme.palette.text.secondary,
+                  "&:hover": { color: theme.palette.primary.main },
+                }}
+              >
+                <EditOutlinedIcon fontSize="small" />
+              </IconButton>
+              <IconButton
+                onClick={() => deleteMsg(m.id)}
+                size="small"
+                title="Удалить"
+                sx={{
+                  color: theme.palette.error.main,
+                  "&:hover": {
+                    backgroundColor:
+                      theme.palette.mode === "dark" ? "#4a2a2a" : "#fdeaea",
+                  },
+                }}
+              >
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          )}
+        </Box>
+
+       {/* Текст сообщения */}
+{m.text && (
+  <Box
+    sx={{
+      fontSize: "0.95rem",
+      lineHeight: 1.45,
+      mb: (atts.length ?? 0) > 0 ? 1 : 0,
+    }}
+    dangerouslySetInnerHTML={{
+      __html: DOMPurify.sanitize(m.text),
+    }}
+  />
+)}
+
+{/* Вложения */}
+{atts.length > 0 && (
+  <Box
+    sx={{
+      mt: 1,
+      display: "flex",
+      flexDirection: "column",
+      gap: 1,
     }}
   >
-    <input
-      id="chatFiles"
-      type="file"
-      className="hidden"
-      multiple
-      onChange={e => setFiles(Array.from(e.target.files || []))}
-      disabled={!!editingMessage}
-    />
-    <label
-      htmlFor="chatFiles"
-      className={`cursor-pointer px-4 py-2 rounded ${
-        editingMessage ? 'opacity-50 pointer-events-none' : ''
-      }`}
-      style={{
-        backgroundColor: theme.palette.action.hover,
-        color: theme.palette.text.primary,
-      }}
-    >
-      Прикрепить файл
-    </label>
-    <button
-      type="submit"
-      disabled={uploading || !!editingMessage || (!text && files.length === 0)}
-      className="px-6 py-2 rounded-full font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
-      style={{
-        backgroundColor: theme.palette.primary.main,
-        color: theme.palette.primary.contrastText,
-      }}
-    >
-      {uploading ? `Загрузка… ${progress}%` : 'Отправить'}
-    </button>
-  </div>
-</form>
+    {atts.map((att) => {
+      const src = att.url.startsWith("blob:")
+        ? att.url
+        : `http://localhost:3001/uploads/${att.url}`;
+      const ext = att.url.split(".").pop()?.toLowerCase();
+      const isImg = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext || "");
 
+      return isImg ? (
+        <Box
+          key={att.id}
+          sx={{
+            display: "inline-block",
+            cursor: "zoom-in",
+            "& img": {
+              maxHeight: 192,
+              maxWidth: "100%",
+              borderRadius: "12px",
+              border: `1px solid ${theme.palette.divider}`,
+              transition: "transform 0.25s ease",
+              "&:hover": { transform: "scale(1.03)" },
+            },
+          }}
+        >
+          <img src={src} alt="" />
+        </Box>
+      ) : (
+        <a
+          key={att.id}
+          href={src}
+          download
+          style={{
+            color: theme.palette.primary.main,
+            textDecoration: "underline",
+            fontSize: "0.9rem",
+            wordBreak: "break-all",
+          }}
+        >
+          📄 {decodeURIComponent(att.url)}
+        </a>
+      );
+    })}
+  </Box>
+)}
+      </Box>
+    </motion.div>
+  );
+};
+
+  return (
+    <Box
+  sx={{
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    backgroundColor:
+      theme.palette.mode === "dark"
+        ? theme.palette.background.default
+        : theme.palette.background.paper, // ✅ белый в светлой теме, серый в тёмной
+    borderRadius: "20px",
+    boxShadow:
+      theme.palette.mode === "dark"
+        ? "0 2px 8px rgba(0,0,0,0.6)"
+        : "0 2px 8px rgba(0,0,0,0.08)",
+    position: "relative",
+  }}
+>
+      {/* === Кнопка / форма написания сообщения === */}
+      <Box sx={{ p: 3, pb: 2 }}>
+        <AnimatePresence initial={false} mode="popLayout">
+          {!composerOpen ? (
+            <motion.div
+              key="collapsed"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.25 }}
+            >
+              <Box
+                onClick={() => setComposerOpen(true)}
+                sx={{
+                  cursor: "pointer",
+                  borderRadius: "20px",
+                  p: 2,
+                  textAlign: "center",
+                  border: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: theme.palette.background.paper,
+                  color: theme.palette.text.secondary,
+                  fontWeight: 500,
+                  "&:hover": {
+                    backgroundColor: theme.palette.action.hover,
+                    color: theme.palette.text.primary,
+                  },
+                }}
+              >
+                ✏️ Написать сообщение
+              </Box>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="expanded"
+              initial={{ opacity: 0, y: -10, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: -10, height: 0 }}
+              transition={{ duration: 0.3 }}
+              style={{ overflow: "hidden" }}
+            >
+              <Box
+                sx={{
+                  borderRadius: "20px",
+                  backgroundColor: theme.palette.background.paper,
+                  border: `1px solid ${theme.palette.divider}`,
+                  boxShadow: theme.shadows[2],
+                  p: 2,
+                }}
+              >
+                <form
+                  onSubmit={(e) => {
+                    send(e);
+                  }}
+                >
+                  <ReactQuill
+                    theme="snow"
+                    value={text}
+                    onChange={(v) => {
+                      setText(v);
+                      emitTyping();
+                      clearTimeout((window as any).__stopTypingTimer);
+                      (window as any).__stopTypingTimer = setTimeout(
+                        emitStopTyping,
+                        800
+                      );
+                    }}
+                    placeholder="Введите сообщение..."
+                    style={{
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                      height: 120,
+                    }}
+                  />
+
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      alignItems: "center",
+                      gap: 1.5,
+                      mt: 1.5,
+                    }}
+                  >
+                    <Button
+                      onClick={() => setComposerOpen(false)}
+                      variant="outlined"
+                      sx={{
+                        borderRadius: "999px",
+                        px: 2.5,
+                        py: 0.8,
+                        fontWeight: 600,
+                        textTransform: "none",
+                      }}
+                    >
+                      Свернуть
+                    </Button>
+
+                    <Button
+                      type="submit"
+                      disabled={!text && files.length === 0}
+                      variant="contained"
+                      sx={{
+                        borderRadius: "999px",
+                        px: 3,
+                        py: 0.8,
+                        fontWeight: 600,
+                        textTransform: "none",
+                      }}
+                    >
+                      {uploading ? `Загрузка… ${progress}%` : "Отправить"}
+                    </Button>
+                  </Box>
+                </form>
+              </Box>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Box>
+
+      {/* === Сообщения === */}
+     <Box
+  ref={scrollRef}
+  sx={{
+    flex: 1,
+    overflowY: "auto",
+    px: 3,
+    pb: 3,
+    display: "flex",
+    flexDirection: "column", // 🔹 переворачиваем порядок
+    gap: 1.5,
+  }}
+>
+  {messages
+    .slice() // 🔹 копия массива, чтобы не мутировать состояние
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ) // 🔹 сортируем по убыванию (новые первыми)
+    .map(renderMsg)}
+
+  <AnimatePresence>
+    {typing && (
+      <motion.div
+        key="typing"
+        initial={{ opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 5 }}
+        transition={{ duration: 0.25 }}
+        style={{
+          alignSelf: "flex-start",
+          backgroundColor: theme.palette.action.hover,
+          borderRadius: "12px",
+          padding: "4px 12px",
+          fontSize: "0.85rem",
+          opacity: 0.8,
+        }}
+      >
+        Собеседник печатает…
+      </motion.div>
+    )}
+  </AnimatePresence>
+</Box>
+
+      {/* === Модалка редактирования === */}
       {editingMessage && (
         <EditMessageModal
           messageId={editingMessage.id}
@@ -468,16 +499,18 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
           removeIds={editRemoveIds}
           newFiles={editNewFiles}
           onTextChange={setEditText}
-          onToggleRemove={id =>
-            setEditRemoveIds(ids =>
-              ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]
+          onToggleRemove={(id) =>
+            setEditRemoveIds((ids) =>
+              ids.includes(id)
+                ? ids.filter((x) => x !== id)
+                : [...ids, id]
             )
           }
-          onAddNewFiles={fils => setEditNewFiles(prev => [...prev, ...fils])}
+          onAddNewFiles={(fs) => setEditNewFiles((p) => [...p, ...fs])}
           onClose={() => setEditingMessage(null)}
           onSave={onSaveEdit}
         />
       )}
-    </div>
+    </Box>
   );
 }

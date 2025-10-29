@@ -21,6 +21,8 @@ import { useTheme } from "@mui/material/styles";
 import { ExpandMore, Add } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { StudentsSidebar } from "../components/rooms/StudentsSidebar";
+
 import {
   Box,
   Typography,
@@ -74,9 +76,9 @@ export function RoomPage() {
   const isTeacher = user?.role === "TEACHER" || user?.role === "ADMIN";
   const isStudent = user?.role === "STUDENT";
 
-  const [chatSessions, setChatSessions] = useState<
-    { id: string; student?: { email: string } }[]
-  >([]);
+const [chatSessions, setChatSessions] = useState<
+  { id: string; student?: { id: string; email: string } }[]
+>([]);
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [showChat, setShowChat] = useState(false);
@@ -85,6 +87,8 @@ export function RoomPage() {
 
   // раскрыт ли композер в "материалах"
   const [composerOpen, setComposerOpen] = useState(false);
+
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // настройки комнаты (название / цвет)
   const [settings, setSettings] = useState<RoomSettings>({
@@ -100,16 +104,14 @@ export function RoomPage() {
     setCodeOverlayOpen(true);
   };
 
-  const handleChat = () => {
-    setShowChat((v) => {
-      const next = !v;
-      if (next) {
-        // если уходим в чат — сворачиваем композер, как ты хотел
-        setComposerOpen(false);
-      }
-      return next;
-    });
-  };
+const handleChat = () => {
+  setShowChat((v) => {
+    const next = !v;
+    setIsChatOpen(next); // 🟢 синхронизация с RoomHeader
+    if (next) setComposerOpen(false);
+    return next;
+  });
+};
 
   // esc закрывает оверлей кода
   useEffect(() => {
@@ -316,6 +318,44 @@ useEffect(() => {
   return () => window.removeEventListener("keydown", handleEsc);
 }, []);
 
+// === Список учеников для боковой панели ===
+  const [students, setStudents] = useState<{ id: string; email: string }[]>([]);
+  const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
+
+const handleSelectStudent = (studentId: string) => {
+  setActiveStudentId(studentId);
+
+  // ищем сессию по student.id
+  const selected = chatSessions.find((s) => s.student?.id === studentId);
+
+  if (selected) {
+    console.log("Открываю чат с:", selected.student?.email);
+    setChatSessionId(selected.id);
+    setUnreadCounts((u) => ({ ...u, [selected.id]: 0 }));
+  } else {
+    console.warn("Не найден чат для студента:", studentId);
+  }
+};
+
+  // Загружаем список учеников, если это учитель
+useEffect(() => {
+  if (!isTeacher) return;
+
+  api
+    .get(`/rooms/${code}/chats`)
+    .then((r) => {
+      setChatSessions(r.data);
+      const list = (r.data || [])
+        .filter((s: any) => s.student)
+        .map((s: any) => ({
+          id: s.student.id,
+          email: s.student.email,
+        }));
+      setStudents(list);
+    })
+    .catch(console.error);
+}, [isTeacher, code]);
+
   // ---------------- RENDER -----------------
 
   return (
@@ -343,15 +383,18 @@ useEffect(() => {
         bgColor={settings.bgColor}
         compact={showChat}
         isTeacher={isTeacher}
+         isChatOpen={isChatOpen}
       />
 
       {/* === Область "Написать сообщение" под шапкой === */}
+     {!showChat && ( 
 <Box
   sx={{
     mt: 3,
     mx: { xs: 2, md: 3 },
   }}
 >
+
   <AnimatePresence initial={false} mode="popLayout">
     {!composerOpen ? (
       // 🔹 Свернутая область — просто карточка "Написать сообщение"
@@ -628,7 +671,7 @@ useEffect(() => {
     )}
   </AnimatePresence>
 </Box>
-
+)}
 
       {/* Модалка "код комнаты" (полноэкранный показ кода) */}
       {codeOverlayOpen && (
@@ -776,164 +819,74 @@ useEffect(() => {
       >
         {showChat ? (
           // ===================== ЧАТ =====================
+           <Box
+    sx={{
+      flex: 1,
+      minHeight: 0,
+      px: { xs: 2, md: 3 },
+      pb: 2,
+      display: "flex",
+      flexDirection: "column",
+      mt: 2.5,
+    }}
+  >
+    {/* Основной flex для панели и чата */}
+    <Box
+      sx={{
+        flex: 1,
+        minHeight: 0,
+        display: "flex",
+        gap: 2,
+         // отступ под шапкой
+      }}
+    >
+      {/* Боковая панель */}
+      {isTeacher && (
+        <StudentsSidebar
+          students={students}
+          onSelectStudent={handleSelectStudent}
+          currentStudentId={activeStudentId ?? undefined}
+        />
+      )}
+
+      {/* Окно чата */}
+      <Box
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          borderRadius: "20px",
+          
+          backgroundColor: theme.palette.background.paper,
+          boxShadow:
+            theme.palette.mode === "dark"
+              ? "0 2px 8px rgba(0,0,0,0.6)"
+              : "0 2px 8px rgba(0,0,0,0.08)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {chatSessionId ? (
+          <ChatWindow
+            sessionId={chatSessionId}
+            setUnreadCounts={setUnreadCounts}
+          />
+        ) : (
           <Box
             sx={{
-              flex: 1,
-              minHeight: 0,
-              px: { xs: 2, md: 3 },
-              pb: 2,
-              display: "flex",
-              flexDirection: "column",
+              p: 4,
+              textAlign: "center",
+              color: theme.palette.text.secondary,
+              fontSize: "0.9rem",
             }}
           >
-            <Box
-              sx={{
-                flex: 1,
-                minHeight: 0,
-                display: "flex",
-                gap: 2,
-              }}
-            >
-              {/* список сессий (только для учителя) */}
-              {isTeacher && (
-                <Box
-                  sx={{
-                    width: { xs: "40%", md: "30%", lg: "28%" },
-                    minWidth: 220,
-                    maxWidth: 320,
-                    borderRadius: "20px",
-                    p: 2,
-                    border: `1px solid ${theme.palette.divider}`,
-                    backgroundColor: theme.palette.background.paper,
-                    boxShadow:
-                      theme.palette.mode === "dark"
-                        ? "0 2px 8px rgba(0,0,0,0.6)"
-                        : "0 2px 8px rgba(0,0,0,0.08)",
-                    display: "flex",
-                    flexDirection: "column",
-                    overflow: "hidden",
-                  }}
-                >
-                  <Typography
-                    variant="subtitle1"
-                    fontWeight={600}
-                    sx={{
-                      mb: 1.5,
-                      color: theme.palette.text.primary,
-                    }}
-                  >
-                    Ученики
-                  </Typography>
-
-                  <Box
-                    sx={{
-                      flex: 1,
-                      minHeight: 0,
-                      overflowY: "auto",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 1,
-                    }}
-                  >
-                    {chatSessions.map((s) => (
-                      <Box
-                        key={s.id}
-                        onClick={() => {
-                          setChatSessionId(s.id);
-                          setUnreadCounts((u) => ({
-                            ...u,
-                            [s.id]: 0,
-                          }));
-                        }}
-                        sx={{
-                          cursor: "pointer",
-                          px: 2,
-                          py: 1.5,
-                          borderRadius: "12px",
-                          border: `1px solid ${theme.palette.divider}`,
-                          backgroundColor:
-                            s.id === chatSessionId
-                              ? theme.palette.action.selected
-                              : theme.palette.background.paper,
-                          "&:hover": {
-                            backgroundColor:
-                              s.id === chatSessionId
-                                ? theme.palette.action.selected
-                                : theme.palette.action.hover,
-                          },
-                          position: "relative",
-                        }}
-                      >
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: theme.palette.text.primary,
-                            fontWeight: 500,
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {s.student?.email}
-                        </Typography>
-
-                        {unreadCounts[s.id] > 0 && (
-                          <Box
-                            component="span"
-                            sx={{
-                              position: "absolute",
-                              top: 8,
-                              right: 8,
-                              width: 8,
-                              height: 8,
-                              borderRadius: "9999px",
-                              backgroundColor: theme.palette.error.main,
-                            }}
-                          />
-                        )}
-                      </Box>
-                    ))}
-                  </Box>
-                </Box>
-              )}
-
-              {/* Окно чата */}
-              <Box
-                sx={{
-                  flex: 1,
-                  minWidth: 0,
-                  borderRadius: "20px",
-                  border: `1px solid ${theme.palette.divider}`,
-                  backgroundColor: theme.palette.background.paper,
-                  boxShadow:
-                    theme.palette.mode === "dark"
-                      ? "0 2px 8px rgba(0,0,0,0.6)"
-                      : "0 2px 8px rgba(0,0,0,0.08)",
-                  minHeight: 0,
-                  overflow: "hidden",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                {chatSessionId ? (
-                  <ChatWindow
-                    sessionId={chatSessionId}
-                    setUnreadCounts={setUnreadCounts}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      p: 4,
-                      textAlign: "center",
-                      color: theme.palette.text.secondary,
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    Выберите чат
-                  </Box>
-                )}
-              </Box>
-            </Box>
+            Выберите чат
           </Box>
-        ) : (
+        )}
+      </Box>
+    </Box>
+  </Box>
+) : (
           // ===================== МАТЕРИАЛЫ =====================
           <Box
             ref={containerRef}
@@ -996,7 +949,7 @@ useEffect(() => {
                       p: 3,
                       borderRadius: "20px",
                       backgroundColor: theme.palette.background.paper,
-                      border: `1px solid ${theme.palette.divider}`,
+                    
                       boxShadow:
                         theme.palette.mode === "dark"
                           ? "0 2px 8px rgba(0,0,0,0.6)"
