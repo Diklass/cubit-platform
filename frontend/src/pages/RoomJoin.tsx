@@ -1,17 +1,21 @@
-// src/pages/RoomJoin.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { useAuth } from "../auth/AuthContext";
-import AnimatedSubmitButton from "../components/ui/AnimatedSubmitButton";
-import { motion } from "framer-motion";
 import {
   Box,
+  Card,
+  CardActionArea,
+  CardContent,
   Typography,
-  useTheme,
+  IconButton,
+  Modal,
   TextField,
-  Paper,
+  Button,
+  Divider,
+  useTheme,
 } from "@mui/material";
+import { Add, DeleteOutline, EditOutlined } from "@mui/icons-material";
 
 export type Room = { id: string; code: string; title?: string };
 
@@ -25,222 +29,328 @@ export function RoomJoin() {
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [title, setTitle] = useState("");
+  const [editing, setEditing] = useState<Room | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [pressedId, setPressedId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
 
   useEffect(() => {
-    setLoadingList(true);
-    api
-      .get<Room[]>("/rooms")
-      .then((res) => setRooms(res.data))
-      .catch(() => setError("Не удалось загрузить список комнат"))
-      .finally(() => setLoadingList(false));
+    loadRooms();
   }, []);
 
-  const createRoom = async () => {
-    if (!title.trim()) {
-      setError("Введите название комнаты");
-      return;
-    }
-    setError(null);
-    setCreating(true);
+  const loadRooms = async () => {
+    setLoadingList(true);
     try {
-      const { data } = await api.post<Room>("/rooms", { title: title.trim() });
-      setRooms((prev) => [...prev, data]);
-      navigate(`/rooms/${data.code}`);
+      const { data } = await api.get<Room[]>("/rooms");
+      setRooms(data);
     } catch {
-      setError("Не удалось создать комнату");
+      setError("Не удалось загрузить список комнат");
     } finally {
-      setCreating(false);
+      setLoadingList(false);
     }
   };
+
+  const handleSave = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      if (editing) {
+        // ✏️ Обновляем существующую комнату
+        await api.patch(`/rooms/${editing.id}`, { title: title.trim() });
+        setRooms((prev) =>
+          prev.map((r) =>
+            r.id === editing.id ? { ...r, title: title.trim() } : r
+          )
+        );
+      } else {
+        // ➕ Создаём новую комнату
+        const { data } = await api.post<Room>("/rooms", { title: title.trim() });
+        setRooms((prev) => [...prev, data]);
+        navigate(`/rooms/${data.code}`);
+      }
+      setOpenModal(false);
+      setTitle("");
+      setEditing(null);
+    } catch {
+      setError("Ошибка при сохранении комнаты");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveRoom = async () => {
+  if (!title.trim()) return;
+ setSaving(true);
+  try {
+    if (editingRoom) {
+      const { data } = await api.patch<Room>(`/rooms/${editingRoom.id}`, { title: title.trim() });
+      setRooms(prev => prev.map(r => (r.id === data.id ? data : r)));
+    } else {
+      const { data } = await api.post<Room>("/rooms", { title: title.trim() });
+      setRooms(prev => [...prev, data]);
+      navigate(`/rooms/${data.code}`);
+    }
+    setOpenModal(false);
+    setTitle("");
+    setEditingRoom(null);
+  } catch {
+    setError(editingRoom ? "Не удалось сохранить комнату" : "Не удалось создать комнату");
+  } finally {
+   setSaving(false);
+  }
+};
+
+const handleEditRoom = (room: Room) => {
+  setEditingRoom(room);
+  setTitle(room.title || "");
+  setOpenModal(true);
+};
+
 
   const handleEnterRoom = (room: Room) => {
-    setPressedId(room.id);
-    setTimeout(() => navigate(`/rooms/${room.code}`), 180);
+    navigate(`/rooms/${room.code}`);
   };
 
-  // --- Карточка секции ---
-  const Card: React.FC<React.PropsWithChildren<{ title: string }>> = ({
-    title,
-    children,
-  }) => (
-    <Paper
-      elevation={0} // убираем белый фон/тень
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!confirm("Удалить комнату?")) return;
+    try {
+      await api.delete(`/rooms/${roomId}`);
+      setRooms((prev) => prev.filter((r) => r.id !== roomId));
+    } catch {
+      alert("Ошибка при удалении комнаты");
+    }
+  };
+
+  const openEditModal = (room: Room) => {
+    setEditing(room);
+    setTitle(room.title || "");
+    setOpenModal(true);
+  };
+
+  const openCreateModal = () => {
+    setEditing(null);
+    setTitle("");
+    setOpenModal(true);
+  };
+
+  return (
+    <Box
       sx={{
-        borderRadius: "20px",
-        p: 3,
-        backgroundColor: theme.palette.background.paper,
-        border: `1px solid ${theme.palette.divider}`,
+        px: "20px",
+        pt: "calc(0px + var(--appbar-offset, 0px))",
+        pb: "40px",
+        backgroundColor: theme.palette.background.default,
         color: theme.palette.text.primary,
-        transition: "background-color 0.3s ease, border-color 0.3s ease",
-        boxShadow:
-          theme.palette.mode === "dark"
-            ? "0 2px 6px rgba(0,0,0,0.4)"
-            : "0 2px 6px rgba(0,0,0,0.06)",
+        transition: "background-color 0.3s ease",
+        minHeight: "100vh",
       }}
     >
       <Typography
-        variant="h6"
-        align="center"
-        fontWeight={600}
+        variant="h4"
         sx={{
-          mb: 2,
+          fontWeight: 700,
+          my: "20px",
           color: theme.palette.text.primary,
         }}
       >
-        {title}
+        {isStudent ? "Мои комнаты" : "Ваши комнаты"}
       </Typography>
-      {children}
-    </Paper>
-  );
 
-  // --- Список комнат ---
-   const RoomsList: React.FC = () => (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-      {loadingList && (
-        <Typography
-          align="center"
-          sx={{ color: theme.palette.text.secondary, py: 2 }}
-        >
+      {error && (
+        <Typography color="error" sx={{ mb: 2 }}>
+          {error}
+        </Typography>
+      )}
+
+      {loadingList ? (
+        <Typography align="center" sx={{ mt: 4 }}>
           Загрузка…
         </Typography>
-      )}
-
-      {!loadingList && rooms.length === 0 && (
-        <Typography
-          align="center"
-          sx={{ color: theme.palette.text.secondary, py: 2 }}
+      ) : (
+        <Box
+          sx={{
+            display: "grid",
+            gap: "20px",
+            gridTemplateColumns: {
+              xs: "repeat(2, 1fr)",
+              sm: "repeat(2, 1fr)",
+              md: "repeat(4, 1fr)",
+              lg: "repeat(4, 1fr)",
+            },
+          }}
         >
-          Пока нет комнат.
-        </Typography>
-      )}
-
-      {!loadingList &&
-        rooms.map((r) => {
-          const active = pressedId === r.id;
-          const label = r.title || r.code;
-
-          return (
-            <AnimatedSubmitButton
-              key={r.id}
-              tone={active ? "primary" : "neutral"}
-              activeRect={active}
-              fullWidth
-              onClick={() => handleEnterRoom(r)}
-              sx={{
-                justifyContent: "center",
-                px: 2,
-                py: 1.2,
-                fontWeight: 600,
-                borderRadius: "12px",
-                backgroundColor: "transparent",
-                boxShadow: "none",
-                "&::before, &::after": { display: "none" },
-                "&:hover": {
-                  backgroundColor: theme.palette.action.hover,
-                },
-              }}
-            >
-              <Typography
-                variant="body1"
-                sx={{
-                  fontWeight: 600,
-                  color: theme.palette.text.primary,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {label}
-              </Typography>
-            </AnimatedSubmitButton>
-          );
-        })}
-    </Box>
-  );
-
-return (
-    <Box
+         {rooms.map((room) => (
+  <Card
+    key={room.id}
+    elevation={2}
+    sx={{
+      borderRadius: "16px",
+      height: 200,
+      backgroundColor: theme.palette.background.paper,
+      color: theme.palette.text.primary,
+      transition: "transform .2s, box-shadow .2s, background-color .3s",
+      "&:hover": {
+        transform: "translateY(-4px)",
+        boxShadow: theme.shadows[6],
+        backgroundColor: theme.palette.action.hover,
+      },
+      // 📐 фиксируем layout как у карточек предметов
+      display: "grid",
+      gridTemplateRows: "1fr auto auto",
+    }}
+  >
+    {/* Верх — название (занимает всё свободное) */}
+    <CardActionArea
+      onClick={() => handleEnterRoom(room)}
       sx={{
-        px: { xs: 2, md: 4 },
-        py: 2.5, // ровно ~20px сверху/снизу
-        minHeight: "calc(100vh - 64px)",
-        backgroundColor: theme.palette.background.default,
-        transition: "background-color 0.3s ease",
+        gridRow: "1 / 2",
         display: "flex",
-        alignItems: "center", // центрируем карточки по вертикали
+        alignItems: "center",
         justifyContent: "center",
+        px: 3,
       }}
     >
+      <CardContent sx={{ py: 2, width: "100%" }}>
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: ".5px",
+            fontSize: "clamp(22px, 4vw, 36px)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            width: "100%",
+            color: theme.palette.text.primary,
+            textAlign: "center",
+          }}
+          title={room.title || room.code}
+        >
+          {room.title || room.code}
+        </Typography>
+        {/* 🔕 убрали отображение кода под названием */}
+      </CardContent>
+    </CardActionArea>
+
+    {/* Разделитель — тонкая строка */}
+    {isTeacher && <Divider sx={{ gridRow: "2 / 3" }} />}
+
+    {/* Низ — компактная панель кнопок */}
+    {isTeacher && (
       <Box
         sx={{
-          width: "100%",
-          maxWidth: isTeacher ? "1100px" : "700px",
-          mx: "auto",
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            lg: isTeacher ? "1fr 1fr" : "1fr",
-          },
-          gap: 2.5,
+          gridRow: "3 / 4",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          px: 1.5,
+          py: 0.75,          // компактнее
+          gap: 0.5,
+          minHeight: 44,      // как у карточек предметов
         }}
       >
-       {/* Список комнат */}
-<Card title={isStudent ? "Мои комнаты" : "Ваши комнаты"}>
-  {error && (
-    <Typography color="error" sx={{ mb: 2 }}>
-      {error}
-    </Typography>
-  )}
-  <RoomsList />
-</Card>
+        <IconButton
+          color="primary"
+          size="small"
+          onClick={() => handleEditRoom(room)}
+        >
+          <svg
+            width="24" height="24" viewBox="0 0 24 24" fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 000-1.42l-2.34-2.34a1.003 1.003 0 00-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" fill="currentColor"/>
+          </svg>
+        </IconButton>
+        <IconButton
+          color="error"
+          size="small"
+          onClick={() => handleDeleteRoom(room.id)}
+        >
+          <DeleteOutline />
+        </IconButton>
+      </Box>
+    )}
+  </Card>
+))}
 
-        {/* Создание комнаты */}
-        {isTeacher && (
-          <Card title="Создать новую комнату">
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <TextField
-                label="Название новой комнаты"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                variant="outlined"
-                size="medium"
-                fullWidth
+
+          {isTeacher && (
+            <Box
+              sx={{
+                gridColumn: "1 / -1",
+                display: "flex",
+                justifyContent: "center",
+                mt: 2,
+              }}
+            >
+              <Card
+                elevation={3}
+                onClick={openCreateModal}
                 sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "12px",
+                  borderRadius: "16px",
+                  height: 200,
+                  width: "100%",
+                  maxWidth: 380,
+                  minWidth: 260,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  transition:
+                    "transform .25s, box-shadow .25s, background-color .25s",
+                  backgroundColor: theme.palette.background.paper,
+                  color: theme.palette.primary.main,
+                  "&:hover": {
+                    transform: "translateY(-4px)",
+                    boxShadow: theme.shadows[4],
+                    backgroundColor: theme.palette.action.hover,
                   },
                 }}
-              />
-              <AnimatedSubmitButton
-                fullWidth
-                loading={creating}
-                onClick={createRoom}
-                sx={{
-                  backgroundColor: "transparent",
-                  boxShadow: "none",
-                  "&::before, &::after": { display: "none" },
-                }}
               >
-                Создать комнату
-              </AnimatedSubmitButton>
-              <Typography
-                variant="caption"
-                align="center"
-                sx={{
-                  color: theme.palette.text.secondary,
-                  opacity: 0.8,
-                }}
-              >
-                Код комнаты будет сгенерирован автоматически.
-              </Typography>
+                <Add sx={{ fontSize: 64, fontWeight: 300 }} />
+              </Card>
             </Box>
-          </Card>
-        )}
-      </Box>
+          )}
+        </Box>
+      )}
+
+      {/* === Модалка создания/редактирования === */}
+      <Modal open={openModal} onClose={() => { setOpenModal(false); setEditingRoom(null); }}>
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            bgcolor: theme.palette.background.paper,
+            boxShadow: theme.shadows[8],
+            borderRadius: "16px",
+            p: 4,
+            width: 400,
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+      {editingRoom ? "Редактировать комнату" : "Новая комната"}
+    </Typography>
+    <TextField
+      label="Название комнаты"
+      fullWidth
+      value={title}
+      onChange={(e) => setTitle(e.target.value)}
+    />
+    <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 3, gap: 2 }}>
+      <Button variant="outlined" onClick={() => { setOpenModal(false); setEditingRoom(null); }}>
+        Отмена
+      </Button>
+      <Button variant="contained" onClick={saveRoom} disabled={saving}>
+        {editingRoom ? "Сохранить" : "Создать"}
+      </Button>
+    </Box>
+  </Box>
+      </Modal>
     </Box>
   );
 }

@@ -133,10 +133,7 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
       backgroundColor: "rgba(255,255,255,0.25)",
       color: iconColor,
       "&:hover": { backgroundColor: "rgba(255,255,255,0.4)" },
-      boxShadow:
-        theme.palette.mode === "dark"
-          ? "0 2px 6px rgba(0,0,0,0.8)"
-          : "0 2px 6px rgba(0,0,0,0.15)",
+      
     }}
     startIcon={<ArrowBackIosNewRounded sx={{ fontSize: 18 }} />}
   >
@@ -267,7 +264,7 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
               sx={{
                 bgcolor: "rgba(255,255,255,0.25)",
                 "&:hover": { bgcolor: "rgba(255,255,255,0.4)" },
-                boxShadow: 2,
+                
               }}
             >
               <SettingsOutlined sx={{ color: iconColor, fontSize: 22 }} />
@@ -296,10 +293,7 @@ export const RoomHeader: React.FC<RoomHeaderProps> = ({
           textTransform: "none",
           fontSize: "1rem",
           "&:hover": { backgroundColor: "rgba(255,255,255,0.4)" },
-          boxShadow:
-            theme.palette.mode === "dark"
-              ? "0 4px 12px rgba(0,0,0,0.8)"
-              : "0 4px 12px rgba(0,0,0,0.2)",
+          
         }}
       >
         <ChatBubbleOutline sx={{ fontSize: 22 }} />

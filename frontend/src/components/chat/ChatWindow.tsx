@@ -12,6 +12,7 @@ import { Box, Typography, Button, IconButton } from "@mui/material";
 
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import { MessageComposer } from "./MessageComposer";
 
 interface Props {
   sessionId: string;
@@ -329,121 +330,26 @@ const renderMsg = (m: ChatMessage) => {
 >
       {/* === Кнопка / форма написания сообщения === */}
       <Box sx={{ p: 3, pb: 2 }}>
-        <AnimatePresence initial={false} mode="popLayout">
-          {!composerOpen ? (
-            <motion.div
-              key="collapsed"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.25 }}
-            >
-              <Box
-                onClick={() => setComposerOpen(true)}
-                sx={{
-                  cursor: "pointer",
-                  borderRadius: "20px",
-                  p: 2,
-                  textAlign: "center",
-                  border: `1px solid ${theme.palette.divider}`,
-                  backgroundColor: theme.palette.background.paper,
-                  color: theme.palette.text.secondary,
-                  fontWeight: 500,
-                  "&:hover": {
-                    backgroundColor: theme.palette.action.hover,
-                    color: theme.palette.text.primary,
-                  },
-                }}
-              >
-                ✏️ Написать сообщение
-              </Box>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="expanded"
-              initial={{ opacity: 0, y: -10, height: 0 }}
-              animate={{ opacity: 1, y: 0, height: "auto" }}
-              exit={{ opacity: 0, y: -10, height: 0 }}
-              transition={{ duration: 0.3 }}
-              style={{ overflow: "hidden" }}
-            >
-              <Box
-                sx={{
-                  borderRadius: "20px",
-                  backgroundColor: theme.palette.background.paper,
-                  border: `1px solid ${theme.palette.divider}`,
-                  boxShadow: theme.shadows[2],
-                  p: 2,
-                }}
-              >
-                <form
-                  onSubmit={(e) => {
-                    send(e);
-                  }}
-                >
-                  <ReactQuill
-                    theme="snow"
-                    value={text}
-                    onChange={(v) => {
-                      setText(v);
-                      emitTyping();
-                      clearTimeout((window as any).__stopTypingTimer);
-                      (window as any).__stopTypingTimer = setTimeout(
-                        emitStopTyping,
-                        800
-                      );
-                    }}
-                    placeholder="Введите сообщение..."
-                    style={{
-                      borderRadius: "12px",
-                      overflow: "hidden",
-                      height: 120,
-                    }}
-                  />
-
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      alignItems: "center",
-                      gap: 1.5,
-                      mt: 1.5,
-                    }}
-                  >
-                    <Button
-                      onClick={() => setComposerOpen(false)}
-                      variant="outlined"
-                      sx={{
-                        borderRadius: "999px",
-                        px: 2.5,
-                        py: 0.8,
-                        fontWeight: 600,
-                        textTransform: "none",
-                      }}
-                    >
-                      Свернуть
-                    </Button>
-
-                    <Button
-                      type="submit"
-                      disabled={!text && files.length === 0}
-                      variant="contained"
-                      sx={{
-                        borderRadius: "999px",
-                        px: 3,
-                        py: 0.8,
-                        fontWeight: 600,
-                        textTransform: "none",
-                      }}
-                    >
-                      {uploading ? `Загрузка… ${progress}%` : "Отправить"}
-                    </Button>
-                  </Box>
-                </form>
-              </Box>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <MessageComposer
+  open={composerOpen}
+  setOpen={setComposerOpen}
+  value={text}
+  onChange={setText}
+  onSubmit={() => {
+    socket.emit("chatMessage", {
+      sessionId,
+      text,
+      files,
+    });
+    setText("");
+    setFiles([]);
+    setComposerOpen(false);
+  }}
+  files={files}
+  setFiles={setFiles}
+  placeholder="Ваш ответ..."
+  submitLabel="Отправить"
+/>
       </Box>
 
       {/* === Сообщения === */}
