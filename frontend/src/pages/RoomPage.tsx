@@ -357,24 +357,39 @@ useEffect(() => {
     .catch(console.error);
 }, [isTeacher, code]);
 
+useEffect(() => {
+  // Блокируем скролл body при монтировании
+  document.body.style.overflow = "hidden";
+  return () => {
+    // Возвращаем скролл при размонтировании
+    document.body.style.overflow = "";
+  };
+}, []);
+
   // ---------------- RENDER -----------------
+  
 
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: "100vh",
-        backgroundColor: theme.palette.background.default,
-        color: theme.palette.text.primary,
-        transition: "background-color 0.3s ease, color 0.3s ease",
-        overflow: "hidden",
-      }}
-    >
-      {/* небольшой отступ сверху как на других страницах */}
-      <Box sx={{ mt: "30px" }} />
+return (
+  <Box
+    sx={{
+      position: "fixed",           // ✅ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ!
+      top: "60px",  
+      left: 0,
+      right: 0,
+      bottom: 0,
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      backgroundColor: theme.palette.background.default,
+      color: theme.palette.text.primary,
+      transition: "background-color 0.3s ease, color 0.3s ease",
+    }}
+  >
+    {/* Отступ сверху */}
+    <Box sx={{ height: "30px", flexShrink: 20 }} />
 
-      {/* ШАПКА КОМНАТЫ (RoomHeader твой, логика не менялась) */}
+    {/* ШАПКА КОМНАТЫ */}
+    <Box sx={{ flexShrink: 0 }}>
       <RoomHeader
         name={info?.title ?? code!}
         code={code!}
@@ -384,299 +399,164 @@ useEffect(() => {
         bgColor={settings.bgColor}
         compact={showChat}
         isTeacher={isTeacher}
-         isChatOpen={isChatOpen}
+        isChatOpen={isChatOpen}
       />
+    </Box>
 
-      {/* === Область "Написать сообщение" под шапкой === */}
-     {isTeacher && !showChat && ( 
- <Box sx={{ mt: 3, mx: { xs: 2, md: 3 } }}>
-    <MessageComposer
-      open={composerOpen}
-      setOpen={setComposerOpen}
-      value={text}
-      onChange={setText}
-      onSubmit={() => {
-        const fd = new FormData();
-        if (text) fd.append("text", text);
-        files.forEach((f) => fd.append("file", f));
-        addMessage.mutate(fd);
-        setText("");
-        setFiles([]);
-        setComposerOpen(false);
-      }}
-      files={files}
-      setFiles={setFiles}
-      placeholder="Введите сообщение..."
-      submitLabel="Отправить"
-    />
-  </Box>
-)}
-
-
-      {/* Модалка "код комнаты" (полноэкранный показ кода) */}
-      {codeOverlayOpen && (
-        <Box
-          onClick={() => setCodeOverlayOpen(false)}
-          sx={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            backgroundColor: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            p: 2,
+    {/* Композер под шапкой */}
+    {isTeacher && !showChat && (
+      <Box sx={{ mt: 3, mx: { xs: 2, md: 3 }, flexShrink: 0 }}>
+        <MessageComposer
+          open={composerOpen}
+          setOpen={setComposerOpen}
+          value={text}
+          onChange={setText}
+          onSubmit={() => {
+            const fd = new FormData();
+            if (text) fd.append("text", text);
+            files.forEach((f) => fd.append("file", f));
+            addMessage.mutate(fd);
+            setText("");
+            setFiles([]);
+            setComposerOpen(false);
           }}
-        >
-          <Paper
-            onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
-            sx={{
-              borderRadius: "20px",
-              p: 4,
-              maxWidth: 720,
-              width: "100%",
-              textAlign: "center",
-              backgroundColor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              border: `1px solid ${theme.palette.divider}`,
-              boxShadow:
-                theme.palette.mode === "dark"
-                  ? "0 12px 32px rgba(0,0,0,0.8)"
-                  : "0 12px 32px rgba(0,0,0,0.16)",
-            }}
-          >
-            <Typography
-              sx={{
-                mb: 2,
-                fontSize: "1rem",
-                fontWeight: 500,
-                opacity: 0.8,
-                color: theme.palette.text.secondary,
-              }}
-            >
-              Код курса
-            </Typography>
+          files={files}
+          setFiles={setFiles}
+          placeholder="Введите сообщение..."
+          submitLabel="Отправить"
+        />
+      </Box>
+    )}
 
-            <Box
-              sx={{
-                fontFamily: "monospace",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                wordBreak: "break-all",
-                userSelect: "all",
-                fontSize: "clamp(28px,8vw,72px)",
-                color: theme.palette.text.primary,
-              }}
-            >
-              {code}
-            </Box>
-
-            <Box
-              sx={{
-                mt: 4,
-                display: "flex",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                gap: 2,
-              }}
-            >
-              <Box<'button'>
-                component="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(code);
-                    alert("✅ Код скопирован в буфер обмена");
-                  } catch {
-                    alert("❌ Не удалось скопировать");
-                  }
-                }}
-                sx={{
-                  px: 3,
-                  py: 1,
-                  borderRadius: "24px",
-                  fontWeight: 500,
-                  fontSize: "0.95rem",
-                  border: "none",
-                  backgroundColor: theme.palette.primary.main,
-                  color: theme.palette.primary.contrastText,
-                  cursor: "pointer",
-                  "&:hover": {
-                    backgroundColor: theme.palette.primary.dark,
-                  },
-                }}
-              >
-                Скопировать
-              </Box>
-
-              <Box<'button'>
-                component="button"
-                onClick={() => setCodeOverlayOpen(false)}
-                sx={{
-                  px: 3,
-                  py: 1,
-                  borderRadius: "24px",
-                  fontWeight: 500,
-                  fontSize: "0.95rem",
-                  border: "none",
-                  backgroundColor: theme.palette.action.hover,
-                  color: theme.palette.text.primary,
-                  cursor: "pointer",
-                  "&:hover": {
-                    backgroundColor: theme.palette.action.selected,
-                  },
-                }}
-              >
-                Закрыть
-              </Box>
-            </Box>
-          </Paper>
-        </Box>
-      )}
-
-      {/* Модалка настроек комнаты */}
-      <RoomSettingsModal
-        initial={settings}
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onSave={(newSettings) => {
-          saveSettings.mutate({
-            title: newSettings.title,
-            bgColor: newSettings.bgColor,
-          });
-        }}
-      />
-
-      {/* Основной контент: ЧАТ либо МАТЕРИАЛЫ */}
-      <Box
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-          position: "relative",
-          pb: 0, // композер сам нависает fixed внизу
-        }}
-      >
-        {showChat ? (
-          // ===================== ЧАТ =====================
-           <Box
-    sx={{
-      flex: 1,
-      minHeight: 0,
-      px: { xs: 2, md: 3 },
-      pb: 2,
-      display: "flex",
-      flexDirection: "column",
-      mt: 2.5,
-    }}
-  >
-    {/* Основной flex для панели и чата */}
+    {/* Основной контент */}
     <Box
       sx={{
         flex: 1,
         minHeight: 0,
+        overflow: "hidden",
         display: "flex",
-        gap: 2,
-         // отступ под шапкой
+        flexDirection: "column",
       }}
     >
-      {/* Боковая панель */}
-      {isTeacher && (
-        <StudentsSidebar
-          students={students}
-          onSelectStudent={handleSelectStudent}
-          currentStudentId={activeStudentId ?? undefined}
-        />
-      )}
-
-      {/* Окно чата */}
-      <Box
-        sx={{
-          flex: 1,
-          minWidth: 0,
-          borderRadius: "20px",
-          
-          backgroundColor: theme.palette.background.paper,
-          boxShadow:
-            theme.palette.mode === "dark"
-              ? "0 2px 8px rgba(0,0,0,0.6)"
-              : "0 2px 8px rgba(0,0,0,0.08)",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {chatSessionId ? (
-          <ChatWindow
-            sessionId={chatSessionId}
-            setUnreadCounts={setUnreadCounts}
-          />
-        ) : (
+      {showChat ? (
+        // ===================== ЧАТ =====================
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,           // ✅ критично
+            overflow: "hidden",     // ✅ скролл только внутри ChatWindow
+            px: { xs: 2, md: 3 },
+            pb: 2,
+            display: "flex",
+            flexDirection: "column",
+            mt: 2.5,
+          }}
+        >
+          {/* Основной flex для панели и чата */}
           <Box
-            sx={{
-              p: 4,
-              textAlign: "center",
-              color: theme.palette.text.secondary,
-              fontSize: "0.9rem",
-            }}
-          >
-            Выберите чат
-          </Box>
-        )}
-      </Box>
-    </Box>
-  </Box>
-) : (
-          // ===================== МАТЕРИАЛЫ =====================
-          <Box
-            ref={containerRef}
             sx={{
               flex: 1,
               minHeight: 0,
-              px: { xs: 2, md: 3 },
-              pb: 8, // место под плавающий композер
-              position: "relative",
               display: "flex",
-              flexDirection: "column",
+              gap: 2,
             }}
           >
-            {/* drag overlay */}
-            {dragCounter > 0 && (
-              <Box
-                sx={{
-                  position: "absolute",
-                  inset: 0,
-                  zIndex: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: "20px",
-                  bgcolor: "rgba(0,0,0,0.4)",
-                  border: `2px dashed ${theme.palette.primary.main}`,
-                  color: theme.palette.primary.contrastText,
-                  fontSize: "1.1rem",
-                  fontWeight: 500,
-                }}
-              >
-                Перетащите файлы сюда
-              </Box>
+            {/* Боковая панель */}
+            {isTeacher && (
+              <StudentsSidebar
+                students={students}
+                onSelectStudent={handleSelectStudent}
+                currentStudentId={activeStudentId ?? undefined}
+              />
             )}
 
-            {/* список материалов */}
+            {/* Окно чата */}
             <Box
-  sx={{
-    flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-    pt: 3,
-    pb: composerOpen ? "0px" : "0px", // 🔹 постоянный нижний отступ 20px
-    transition: "padding-bottom 0.3s ease",
-    scrollPaddingBottom: "0px", // чтобы auto-scroll не упирался в край
-  }}
->
+              sx={{
+                flex: 1,
+                minHeight: 0,       // ✅ критично
+                minWidth: 0,
+                borderRadius: "20px",
+                backgroundColor: theme.palette.background.paper,
+                boxShadow:
+                  theme.palette.mode === "dark"
+                    ? "0 2px 8px rgba(0,0,0,0.6)"
+                    : "0 2px 8px rgba(0,0,0,0.08)",
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              {chatSessionId ? (
+                <ChatWindow
+                  sessionId={chatSessionId}
+                  setUnreadCounts={setUnreadCounts}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    p: 4,
+                    textAlign: "center",
+                    color: theme.palette.text.secondary,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  Выберите чат
+                </Box>
+              )}
+            </Box>
+          </Box>
+        </Box>
+      ) : (
+        // ===================== МАТЕРИАЛЫ =====================
+        <Box
+          ref={containerRef}
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            px: { xs: 2, md: 3 },
+            position: "relative",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",      // ✅ запрещаем скролл контейнера
+          }}
+        >
+          {/* drag overlay */}
+          {dragCounter > 0 && (
+            <Box
+              sx={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "20px",
+                bgcolor: "rgba(0,0,0,0.4)",
+                border: `2px dashed ${theme.palette.primary.main}`,
+                color: theme.palette.primary.contrastText,
+                fontSize: "1.1rem",
+                fontWeight: 500,
+              }}
+            >
+              Перетащите файлы сюда
+            </Box>
+          )}
+
+          {/* список материалов - СКРОЛЛИРУЕМЫЙ */}
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",    // ✅ скролл ТОЛЬКО здесь
+              overflowX: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              pt: 3,
+              pb: 3,
+            }}
+          >
               {messages
                 .slice()
                 .reverse()
