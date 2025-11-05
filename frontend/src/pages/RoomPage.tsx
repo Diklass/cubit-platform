@@ -77,9 +77,9 @@ export function RoomPage() {
   const isTeacher = user?.role === "TEACHER" || user?.role === "ADMIN";
   const isStudent = user?.role === "STUDENT";
 
-const [chatSessions, setChatSessions] = useState<
-  { id: string; student?: { id: string; email: string } }[]
->([]);
+  const [chatSessions, setChatSessions] = useState<
+    { id: string; student?: { id: string; email: string } }[]
+  >([]);
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [showChat, setShowChat] = useState(false);
@@ -105,14 +105,14 @@ const [chatSessions, setChatSessions] = useState<
     setCodeOverlayOpen(true);
   };
 
-const handleChat = () => {
-  setShowChat((v) => {
-    const next = !v;
-    setIsChatOpen(next); // 🟢 синхронизация с RoomHeader
-    if (next) setComposerOpen(false);
-    return next;
-  });
-};
+  const handleChat = () => {
+    setShowChat((v) => {
+      const next = !v;
+      setIsChatOpen(next); // 🟢 синхронизация с RoomHeader
+      if (next) setComposerOpen(false);
+      return next;
+    });
+  };
 
   // esc закрывает оверлей кода
   useEffect(() => {
@@ -309,254 +309,256 @@ const handleChat = () => {
 
 
   // 🔹 Просмотр изображений
-const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-useEffect(() => {
-  const handleEsc = (e: KeyboardEvent) => {
-    if (e.key === "Escape") setImagePreview(null);
-  };
-  window.addEventListener("keydown", handleEsc);
-  return () => window.removeEventListener("keydown", handleEsc);
-}, []);
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setImagePreview(null);
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, []);
 
-// === Список учеников для боковой панели ===
+  // === Список учеников для боковой панели ===
   const [students, setStudents] = useState<{ id: string; email: string }[]>([]);
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
 
-const handleSelectStudent = (studentId: string) => {
-  setActiveStudentId(studentId);
+  const handleSelectStudent = (studentId: string) => {
+    setActiveStudentId(studentId);
 
-  // ищем сессию по student.id
-  const selected = chatSessions.find((s) => s.student?.id === studentId);
+    // ищем сессию по student.id
+    const selected = chatSessions.find((s) => s.student?.id === studentId);
 
-  if (selected) {
-    console.log("Открываю чат с:", selected.student?.email);
-    setChatSessionId(selected.id);
-    setUnreadCounts((u) => ({ ...u, [selected.id]: 0 }));
-  } else {
-    console.warn("Не найден чат для студента:", studentId);
-  }
-};
+    if (selected) {
+      console.log("Открываю чат с:", selected.student?.email);
+      setChatSessionId(selected.id);
+      setUnreadCounts((u) => ({ ...u, [selected.id]: 0 }));
+    } else {
+      console.warn("Не найден чат для студента:", studentId);
+    }
+  };
 
   // Загружаем список учеников, если это учитель
-useEffect(() => {
-  if (!isTeacher) return;
+  useEffect(() => {
+    if (!isTeacher) return;
 
-  api
-    .get(`/rooms/${code}/chats`)
-    .then((r) => {
-      setChatSessions(r.data);
-      const list = (r.data || [])
-        .filter((s: any) => s.student)
-        .map((s: any) => ({
-          id: s.student.id,
-          email: s.student.email,
-        }));
-      setStudents(list);
-    })
-    .catch(console.error);
-}, [isTeacher, code]);
+    api
+      .get(`/rooms/${code}/chats`)
+      .then((r) => {
+        setChatSessions(r.data);
+        const list = (r.data || [])
+          .filter((s: any) => s.student)
+          .map((s: any) => ({
+            id: s.student.id,
+            email: s.student.email,
+          }));
+        setStudents(list);
+      })
+      .catch(console.error);
+  }, [isTeacher, code]);
 
-useEffect(() => {
-  // Блокируем скролл body при монтировании
-  document.body.style.overflow = "hidden";
-  return () => {
-    // Возвращаем скролл при размонтировании
-    document.body.style.overflow = "";
-  };
-}, []);
+  useEffect(() => {
+    // Блокируем скролл body при монтировании
+    document.body.style.overflow = "hidden";
+    return () => {
+      // Возвращаем скролл при размонтировании
+      document.body.style.overflow = "";
+    };
+  }, []);
 
   // ---------------- RENDER -----------------
-  
 
-return (
-  <Box
-    sx={{
-      position: "fixed",           // ✅ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ!
-      top: "60px",  
-      left: 0,
-      right: 0,
-      bottom: 0,
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-      backgroundColor: theme.palette.background.default,
-      color: theme.palette.text.primary,
-      transition: "background-color 0.3s ease, color 0.3s ease",
-    }}
-  >
-    {/* Отступ сверху */}
-    <Box sx={{ height: "30px", flexShrink: 20 }} />
 
-    {/* ШАПКА КОМНАТЫ */}
-    <Box sx={{ flexShrink: 0 }}>
-      <RoomHeader
-        name={info?.title ?? code!}
-        code={code!}
-        onEdit={handleEdit}
-        onFullscreen={handleFullscreen}
-        onChat={handleChat}
-        bgColor={settings.bgColor}
-        compact={showChat}
-        isTeacher={isTeacher}
-        isChatOpen={isChatOpen}
-      />
-    </Box>
-
-    {/* Композер под шапкой */}
-    {isTeacher && !showChat && (
-      <Box sx={{ mt: 3, mx: { xs: 2, md: 3 }, flexShrink: 0 }}>
-        <MessageComposer
-          open={composerOpen}
-          setOpen={setComposerOpen}
-          value={text}
-          onChange={setText}
-          onSubmit={() => {
-            const fd = new FormData();
-            if (text) fd.append("text", text);
-            files.forEach((f) => fd.append("file", f));
-            addMessage.mutate(fd);
-            setText("");
-            setFiles([]);
-            setComposerOpen(false);
-          }}
-          files={files}
-          setFiles={setFiles}
-          placeholder="Введите сообщение..."
-          submitLabel="Отправить"
-        />
-      </Box>
-    )}
-
-    {/* Основной контент */}
+  return (
     <Box
       sx={{
-        flex: 1,
-        minHeight: 0,
-        overflow: "hidden",
+        position: "fixed",           // ✅ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ!
+        top: "60px",
+        left: 0,
+        right: 0,
+        bottom: 0,
         display: "flex",
         flexDirection: "column",
+        overflow: "hidden",
+        backgroundColor: theme.palette.background.default,
+        color: theme.palette.text.primary,
+        transition: "background-color 0.3s ease, color 0.3s ease",
       }}
     >
-      {showChat ? (
-        // ===================== ЧАТ =====================
-        <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,           // ✅ критично
-            overflow: "hidden",     // ✅ скролл только внутри ChatWindow
-            px: { xs: 2, md: 3 },
-            pb: 2,
-            display: "flex",
-            flexDirection: "column",
-            mt: 2.5,
-          }}
-        >
-          {/* Основной flex для панели и чата */}
+      {/* Отступ сверху */}
+      <Box sx={{ height: "30px", flexShrink: 20 }} />
+
+      {/* ШАПКА КОМНАТЫ */}
+      <Box sx={{ flexShrink: 0 }}>
+        <RoomHeader
+          name={info?.title ?? code!}
+          code={code!}
+          onEdit={handleEdit}
+          onFullscreen={handleFullscreen}
+          onChat={handleChat}
+          bgColor={settings.bgColor}
+          compact={showChat}
+          isTeacher={isTeacher}
+          isChatOpen={isChatOpen}
+        />
+      </Box>
+
+      {/* Композер под шапкой */}
+      {isTeacher && !showChat && (
+        <Box sx={{ mt: 3, mx: { xs: 2, md: 3 }, flexShrink: 0 }}>
+          <MessageComposer
+            open={composerOpen}
+            setOpen={setComposerOpen}
+            value={text}
+            onChange={setText}
+            onSubmit={() => {
+              const fd = new FormData();
+              if (text) fd.append("text", text);
+              files.forEach((f) => fd.append("file", f));
+              addMessage.mutate(fd);
+              setText("");
+              setFiles([]);
+              setComposerOpen(false);
+            }}
+            files={files}
+            setFiles={setFiles}
+            placeholder="Введите сообщение..."
+            submitLabel="Отправить"
+          />
+        </Box>
+      )}
+
+      {/* Основной контент */}
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {showChat ? (
+          // ===================== ЧАТ =====================
           <Box
             sx={{
               flex: 1,
-              minHeight: 0,
+              minHeight: 0,           // ✅ критично
+              overflow: "hidden",     // ✅ скролл только внутри ChatWindow
+              px: { xs: 2, md: 3 },
+              pb: 2,
               display: "flex",
-              gap: 2,
+              flexDirection: "column",
+              mt: 2.5,
             }}
           >
-            {/* Боковая панель */}
-            {isTeacher && (
-              <StudentsSidebar
-                students={students}
-                onSelectStudent={handleSelectStudent}
-                currentStudentId={activeStudentId ?? undefined}
-              />
-            )}
-
-            {/* Окно чата */}
+            {/* Основной flex для панели и чата */}
             <Box
               sx={{
                 flex: 1,
-                minHeight: 0,       // ✅ критично
-                minWidth: 0,
-                borderRadius: "20px",
-                backgroundColor: theme.palette.background.paper,
-                boxShadow:
-                  theme.palette.mode === "dark"
-                    ? "0 2px 8px rgba(0,0,0,0.6)"
-                    : "0 2px 8px rgba(0,0,0,0.08)",
-                overflow: "hidden",
+                minHeight: 0,
                 display: "flex",
-                flexDirection: "column",
+                gap: 2,
               }}
             >
-              {chatSessionId ? (
-                <ChatWindow
-                  sessionId={chatSessionId}
-                  setUnreadCounts={setUnreadCounts}
+              {/* Боковая панель */}
+              {isTeacher && (
+                <StudentsSidebar
+                  students={students}
+                  onSelectStudent={handleSelectStudent}
+                  currentStudentId={activeStudentId ?? undefined}
+                  headerColor={settings.bgColor}
                 />
-              ) : (
-                <Box
-                  sx={{
-                    p: 4,
-                    textAlign: "center",
-                    color: theme.palette.text.secondary,
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  Выберите чат
-                </Box>
               )}
+
+              {/* Окно чата */}
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,       // ✅ критично
+                  minWidth: 0,
+                  borderRadius: "20px",
+                  backgroundColor: theme.palette.background.paper,
+                  boxShadow:
+                    theme.palette.mode === "dark"
+                      ? "0 2px 8px rgba(0,0,0,0.6)"
+                      : "0 2px 8px rgba(0,0,0,0.08)",
+                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {chatSessionId ? (
+                  <ChatWindow
+                    sessionId={chatSessionId}
+                    setUnreadCounts={setUnreadCounts}
+                    headerColor={settings.bgColor}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      p: 4,
+                      textAlign: "center",
+                      color: theme.palette.text.secondary,
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    Выберите чат
+                  </Box>
+                )}
+              </Box>
             </Box>
           </Box>
-        </Box>
-      ) : (
-        // ===================== МАТЕРИАЛЫ =====================
-        <Box
-          ref={containerRef}
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            px: { xs: 2, md: 3 },
-            position: "relative",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",      // ✅ запрещаем скролл контейнера
-          }}
-        >
-          {/* drag overlay */}
-          {dragCounter > 0 && (
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 0,
-                zIndex: 10,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "20px",
-                bgcolor: "rgba(0,0,0,0.4)",
-                border: `2px dashed ${theme.palette.primary.main}`,
-                color: theme.palette.primary.contrastText,
-                fontSize: "1.1rem",
-                fontWeight: 500,
-              }}
-            >
-              Перетащите файлы сюда
-            </Box>
-          )}
-
-          {/* список материалов - СКРОЛЛИРУЕМЫЙ */}
+        ) : (
+          // ===================== МАТЕРИАЛЫ =====================
           <Box
+            ref={containerRef}
             sx={{
               flex: 1,
               minHeight: 0,
-              overflowY: "auto",    // ✅ скролл ТОЛЬКО здесь
-              overflowX: "hidden",
+              px: { xs: 2, md: 3 },
+              position: "relative",
               display: "flex",
               flexDirection: "column",
-              gap: 2,
-              pt: 3,
-              pb: 3,
+              overflow: "hidden",      // ✅ запрещаем скролл контейнера
             }}
           >
+            {/* drag overlay */}
+            {dragCounter > 0 && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "20px",
+                  bgcolor: "rgba(0,0,0,0.4)",
+                  border: `2px dashed ${theme.palette.primary.main}`,
+                  color: theme.palette.primary.contrastText,
+                  fontSize: "1.1rem",
+                  fontWeight: 500,
+                }}
+              >
+                Перетащите файлы сюда
+              </Box>
+            )}
+
+            {/* список материалов - СКРОЛЛИРУЕМЫЙ */}
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: "auto",    // ✅ скролл ТОЛЬКО здесь
+                overflowX: "hidden",
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                pt: 3,
+                pb: 3,
+              }}
+            >
               {messages
                 .slice()
                 .reverse()
@@ -569,7 +571,7 @@ return (
                       p: 3,
                       borderRadius: "20px",
                       backgroundColor: theme.palette.background.paper,
-                    
+
                       boxShadow:
                         theme.palette.mode === "dark"
                           ? "0 2px 8px rgba(0,0,0,0.6)"
@@ -736,6 +738,18 @@ return (
         )}
       </Box>
 
+      {/* === МОДАЛКА НАСТРОЕК КОМНАТЫ === */}
+<RoomSettingsModal
+  initial={settings}
+  isOpen={settingsOpen}
+  onClose={() => setSettingsOpen(false)}
+  onSave={(newSettings) => {
+    setSettings(newSettings);
+    saveSettings.mutate(newSettings);
+  }}
+/>
+
+
       {/* Модалка редактирования сообщения */}
       {editingMessage && (
         <EditMessageModal
@@ -761,47 +775,48 @@ return (
       )}
 
       {/* === Модальное окно просмотра изображения === */}
-{imagePreview && (
-  <Box
-    onClick={() => setImagePreview(null)}
-    sx={{
-      position: "fixed",
-      inset: 0,
-      zIndex: 1300,
-      backgroundColor: "rgba(0,0,0,0.85)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      cursor: "zoom-out",
-      p: 3,
-      backdropFilter: "blur(3px)",
-      animation: "fadeIn 0.3s ease",
-      "@keyframes fadeIn": {
-        from: { opacity: 0 },
-        to: { opacity: 1 },
-      },
-    }}
-  >
-    <Box
-      component={"img" as React.ElementType}
-      src={imagePreview}
-      alt="preview"
-      sx={{
-        maxWidth: "95%",
-        maxHeight: "90vh",
-        borderRadius: "16px",
-        boxShadow:
-          theme.palette.mode === "dark"
-            ? "0 0 30px rgba(0,0,0,0.8)"
-            : "0 0 30px rgba(0,0,0,0.3)",
-        transition: "transform 0.3s ease",
-        transform: "scale(1)",
-        "&:hover": { transform: "scale(1.02)" },
-        cursor: "zoom-out",
-      }}
-    />
-  </Box>
-)}
+      {imagePreview && (
+        <Box
+          onClick={() => setImagePreview(null)}
+          sx={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1300,
+            backgroundColor: "rgba(0,0,0,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "zoom-out",
+            p: 3,
+            backdropFilter: "blur(3px)",
+            animation: "fadeIn 0.3s ease",
+            "@keyframes fadeIn": {
+              from: { opacity: 0 },
+              to: { opacity: 1 },
+            },
+          }}
+        >
+          <Box
+            component={"img" as React.ElementType}
+            src={imagePreview}
+            alt="preview"
+            sx={{
+              maxWidth: "95%",
+              maxHeight: "90vh",
+              borderRadius: "16px",
+              boxShadow:
+                theme.palette.mode === "dark"
+                  ? "0 0 30px rgba(0,0,0,0.8)"
+                  : "0 0 30px rgba(0,0,0,0.3)",
+              transition: "transform 0.3s ease",
+              transform: "scale(1)",
+              "&:hover": { transform: "scale(1.02)" },
+              cursor: "zoom-out",
+            }}
+          />
+        </Box>
+      )}
     </Box>
+    
   );
 }

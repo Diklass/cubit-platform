@@ -15,6 +15,7 @@ import { useAuth } from "../auth/AuthContext";
 import AnimatedSubmitButton from "../components/ui/AnimatedSubmitButton";
 import ExpressiveSegmentedTabs from "../components/ui/ExpressiveSegmentedTabs";
 import logo from "../assets/logo.svg";
+import CubitLogo from "../assets/logo.svg?react";
 
 type FormLogin = { email: string; password: string };
 type FormRoom = { roomCode: string };
@@ -31,13 +32,22 @@ const LoginOrJoin: React.FC = () => {
 
   const isDark = theme.palette.mode === "dark";
 
-  // 🎨 градиент из Dashboard
-  useEffect(() => {
-    const newColors = isDark
-      ? ["#0E1A2B", "#12365C", "#1D5BAF", "#3C96EF"]
-      : ["#E8F4FF", "#BFDFFF", "#6BB6FF", "#3C96EF"];
-    setColors(newColors);
-  }, [isDark]);
+
+ // 🎨 тот же градиент, что на Dashboard
+useEffect(() => {
+  const newColors = isDark
+    ? [
+        "#0F5699", "#500F66",
+        "#0F5699", "#66210A",
+        "#0F5699", "#0A6647",
+      ]
+    : [
+        "#6DB1F2", "#E9CEF2",
+        "#6DB1F2", "#F2D7CE",
+        "#6DB1F2", "#CEF2E6",
+      ];
+  setColors(newColors);
+}, [isDark]);
 
   const {
     register: regLogin,
@@ -90,37 +100,51 @@ const LoginOrJoin: React.FC = () => {
         position: "relative",
       }}
     >
-      {/* 🌈 фон — плавно анимированный градиент */}
-      <motion.div
-        key={isDark ? "dark" : "light"}
-        className="fixed inset-0"
-        style={{
-          zIndex: 0,
-          background: `linear-gradient(120deg, ${colors.join(", ")})`,
-          backgroundSize: "400% 400%",
-          pointerEvents: "none",
-        }}
-        animate={{
-          backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-        }}
-        transition={{
-          duration: 25,
-          ease: "easeInOut",
-          repeat: Infinity,
-        }}
-      />
+    {/* 🌈 Анимированный фон как в Dashboard */}
+<motion.div
+  key={isDark ? "dark" : "light"}
+  className="fixed inset-0"
+  style={{
+    zIndex: 0,
+    pointerEvents: "none",
+    backgroundImage: `linear-gradient(135deg, ${colors.join(", ")})`,
+    backgroundRepeat: "no-repeat",
+    backgroundSize: "300% 300%",
+  }}
+  initial={{ opacity: 0 }}
+  animate={{
+    opacity: 1,
+    backgroundPosition: [
+      "0% 0%",
+      "50% 50%",
+      "100% 100%",
+      "50% 50%",
+      "0% 0%",
+    ],
+  }}
+  transition={{
+    opacity: { duration: 1.5, ease: "easeOut" },
+    backgroundPosition: {
+      duration: 35,
+      ease: "linear",
+      repeat: Infinity,
+    },
+  }}
+/>
 
-      {/* 🔅 виньетка для читаемости */}
-      <div
-        className="fixed inset-0"
-        style={{
-          background:
-            "radial-gradient(900px 600px at 50% 40%, rgba(0,0,0,0.25), rgba(0,0,0,0.55))",
-          opacity: isDark ? 0.5 : 0.35,
-          mixBlendMode: isDark ? "normal" : "multiply",
-          zIndex: 0,
-        }}
-      />
+    {/* 🔅 Виньетка */}
+<div
+  className="fixed inset-0"
+  style={{
+    zIndex: 0,
+    pointerEvents: "none",
+    background:
+      "radial-gradient(ellipse 1100px 700px at 50% 35%, rgba(0,0,0,0.1), rgba(0,0,0,0.4))",
+    mixBlendMode: isDark ? "normal" : "multiply",
+    opacity: isDark ? 0.6 : 0.35,
+    transition: "opacity 1.2s ease-in-out",
+  }}
+/>
 
       <Box
         sx={{
@@ -133,43 +157,42 @@ const LoginOrJoin: React.FC = () => {
           px: 2,
         }}
       >
-        {/* 🌟 логотип */}
-        <motion.img
-          src={logo}
-          alt="Cubit Logo"
-          initial={{ scale: 0, rotate: -90, opacity: 0 }}
-          animate={{ scale: 1, rotate: 0, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 120, damping: 12 }}
-          className="w-[100px] h-[100px] mb-4 select-none drop-shadow-lg mx-auto"
-        />
+  {/* 🌟 Логотип и название поближе */}
+<div className="flex items-center gap-3 z-10 mb-4 mt-4 select-none justify-center">
+  <motion.div
+    initial={{ scale: 0, rotate: -90, opacity: 0 }}
+    animate={{ scale: 1, rotate: 0, opacity: 1 }}
+    transition={{ type: "spring", stiffness: 120, damping: 12, duration: 1.2 }}
+    whileHover={{ scale: 1.05, rotate: [0, -4, 4, 0] }}
+    className="w-[95px] h-[95px] drop-shadow-lg flex items-center justify-center"
+  >
+    <CubitLogo
+      style={{
+        width: "100%",
+        height: "100%",
+        color: isDark ? "#90caf9" : "#1976d2",
+        transition: "color .3s ease-in-out",
+      }}
+    />
+  </motion.div>
 
-        {/* 👋 приветствие */}
-        <motion.h1
-          className="text-4xl font-extrabold tracking-tight mb-4"
-          initial={{ opacity: 0, y: 25 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          style={{
-            color: theme.palette.mode === "dark" ? "#FFFFFF" : "#111827",
-          }}
-        >
-          Добро пожаловать в Cubit{" "}
-          <motion.span
-            initial={{ rotate: 0 }}
-            animate={{
-              rotate: [0, 15, -10, 15, -5, 0],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              repeatDelay: 6,
-              ease: "easeInOut",
-            }}
-            style={{ display: "inline-block", transformOrigin: "70% 70%" }}
-          >
-            👋
-          </motion.span>
-        </motion.h1>
+  <motion.span
+    initial={{ opacity: 0, x: -10 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ delay: 0.25, duration: 0.6 }}
+    style={{
+      fontSize: "3.1rem",
+      fontWeight: 800,
+      letterSpacing: "-0.02em",
+      color: theme.palette.primary.main,
+      textShadow: "0 2px 10px rgba(0,0,0,0.15)",
+    }}
+  >
+    Cubit
+  </motion.span>
+</div>
+
+    
 
         {/* 💡 карточка формы */}
         <MotionCard

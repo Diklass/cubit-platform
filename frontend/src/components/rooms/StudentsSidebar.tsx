@@ -22,15 +22,49 @@ interface Props {
   students: Student[];
   onSelectStudent: (id: string) => void;
   currentStudentId?: string;
+  headerColor?: string;
 }
 
 export const StudentsSidebar: React.FC<Props> = ({
   students,
   onSelectStudent,
   currentStudentId,
+  headerColor,
 }) => {
   const theme = useTheme();
   const { user } = useAuth();
+
+  function getContrastColor(bg: string) {
+    try {
+      const c = bg.substring(1);
+      const rgb = [
+        parseInt(c.substr(0, 2), 16) / 255,
+        parseInt(c.substr(2, 2), 16) / 255,
+        parseInt(c.substr(4, 2), 16) / 255
+      ];
+      const lum = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+      return lum > 0.45 ? "#1C1B1F" : "#FFFFFF";
+    } catch {
+      return "#FFFFFF";
+    }
+  }
+
+function lighten(hex: string, amount = 0.12) {
+  try {
+    const num = parseInt(hex.slice(1), 16);
+    let r = (num >> 16) & 255;
+    let g = (num >> 8) & 255;
+    let b = num & 255;
+
+    r = Math.round(r + (255 - r) * amount);
+    g = Math.round(g + (255 - g) * amount);
+    b = Math.round(b + (255 - b) * amount);
+
+    return `rgb(${r}, ${g}, ${b})`;
+  } catch {
+    return hex;
+  }
+}
 
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window !== "undefined") {
@@ -125,23 +159,23 @@ export const StudentsSidebar: React.FC<Props> = ({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: selected
-                        ? theme.palette.primary.contrastText
-                        : theme.palette.text.secondary,
                       backgroundColor: selected
-                        ? theme.palette.primary.main
+                        ? headerColor || theme.palette.primary.main
                         : theme.palette.mode === "dark"
-                        ? "#2b2b2b"
-                        : "#E9F0FB",
+                          ? "#2b2b2b"
+                          : "#E9F0FB",
+                      color: selected
+                        ? getContrastColor(headerColor || theme.palette.primary.main)
+                        : theme.palette.text.secondary,
                       boxShadow: selected
                         ? "0 3px 8px rgba(0,0,0,0.25)"
                         : "0 2px 4px rgba(0,0,0,0.08)",
                       transition: "all .25s ease",
-                      "&:hover": {
-                        backgroundColor: selected
-                          ? theme.palette.primary.dark
-                          : theme.palette.action.hover,
-                      },
+"&:hover": {
+  backgroundColor: selected
+    ? lighten(headerColor || theme.palette.primary.main, 0.12)
+    : theme.palette.action.hover,
+},
                     })}
                   >
                     <PersonIcon />
@@ -182,21 +216,21 @@ export const StudentsSidebar: React.FC<Props> = ({
                     alignItems: "center",
                     gap: 1,
                     backgroundColor: selected
-                      ? theme.palette.primary.main
+                      ? headerColor || theme.palette.primary.main
                       : theme.palette.mode === "dark"
-                      ? "#2b2b2b"
-                      : "#E9F0FB",
+                        ? "#2b2b2b"
+                        : "#E9F0FB",
                     color: selected
-                      ? theme.palette.primary.contrastText
+                      ? getContrastColor(headerColor || theme.palette.primary.main)
                       : theme.palette.text.primary,
                     boxShadow: selected
                       ? "0 3px 8px rgba(0,0,0,0.15)"
                       : "0 2px 4px rgba(0,0,0,0.05)",
-                    "&:hover": {
-                      backgroundColor: selected
-                        ? theme.palette.primary.dark
-                        : theme.palette.action.hover,
-                    },
+"&:hover": {
+  backgroundColor: selected
+    ? lighten(headerColor || theme.palette.primary.main, 0.12)
+    : theme.palette.action.hover,
+},
                   })}
                 >
                   <Box

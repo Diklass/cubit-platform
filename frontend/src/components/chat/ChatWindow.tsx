@@ -18,9 +18,10 @@ import { Menu, MenuItem } from "@mui/material";
 interface Props {
   sessionId: string;
   setUnreadCounts: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  headerColor?: string;
 }
 
-export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
+export function ChatWindow({ sessionId, setUnreadCounts, headerColor  }: Props) {
   const { user } = useAuth();
   const theme = useTheme();
 
@@ -56,6 +57,22 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
     if (!container) return;
     container.scrollTop = container.scrollHeight;
   };
+
+  function getContrastColor(bg: string) {
+  try {
+    const c = bg.substring(1);
+    const rgb = [
+      parseInt(c.substr(0,2),16)/255,
+      parseInt(c.substr(2,2),16)/255,
+      parseInt(c.substr(4,2),16)/255
+    ];
+    const lum = 0.2126*rgb[0] + 0.7152*rgb[1] + 0.0722*rgb[2];
+    return lum > 0.45 ? "#1C1B1F" : "#FFFFFF"; // dark text on light bg and vice versa
+  } catch {
+    return "#FFFFFF";
+  }
+}
+
 
   // Получение истории сообщений при монтировании
   useEffect(() => {
@@ -232,12 +249,12 @@ export function ChatWindow({ sessionId, setUnreadCounts }: Props) {
             padding: "8px 12px",
             paddingBottom: "18px",
             borderRadius: "16px",
-            backgroundColor: isMine
-              ? theme.palette.primary.main
-              : theme.palette.background.paper,
-            color: isMine
-              ? theme.palette.primary.contrastText
-              : theme.palette.text.primary,
+           backgroundColor: isMine
+  ? headerColor || theme.palette.primary.main
+  : theme.palette.background.paper,
+color: isMine
+  ? getContrastColor(headerColor || theme.palette.primary.main)
+  : theme.palette.text.primary,
             backdropFilter: "blur(6px)",
             border: isMine
               ? "none"
@@ -343,11 +360,11 @@ lineHeight: 1.5,
                       padding: "8px 12px",
                       borderRadius: "8px",
                       backgroundColor: isMine
-                        ? "rgba(255,255,255,0.15)"
-                        : "rgba(0,0,0,0.05)",
-                      color: isMine
-                        ? theme.palette.primary.contrastText
-                        : theme.palette.text.primary,
+  ? headerColor || theme.palette.primary.main
+  : theme.palette.background.paper,
+                     color: isMine
+  ? getContrastColor(headerColor || theme.palette.primary.main)
+  : theme.palette.text.primary,
                       textDecoration: "none",
                       fontSize: "0.875rem",
                       wordBreak: "break-all",
@@ -377,9 +394,9 @@ lineHeight: 1.5,
               fontSize: "0.6875rem",
               opacity: isMine ? 0.7 : 0.5,
               pointerEvents: "none",
-              color: isMine
-                ? theme.palette.primary.contrastText
-                : theme.palette.text.secondary,
+             color: isMine
+  ? getContrastColor(headerColor || theme.palette.primary.main)
+  : theme.palette.text.secondary,
             }}
           >
             {new Date(m.createdAt).toLocaleTimeString([], {
