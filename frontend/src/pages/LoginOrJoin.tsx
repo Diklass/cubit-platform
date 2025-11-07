@@ -42,9 +42,9 @@ useEffect(() => {
         "#0F5699", "#0A6647",
       ]
     : [
-        "#6DB1F2", "#E9CEF2",
-        "#6DB1F2", "#F2D7CE",
-        "#6DB1F2", "#CEF2E6",
+        "#91C3F2", "#E9CEF2",
+        "#91C3F2", "#F2D7CE",
+        "#91C3F2", "#CEF2E6",
       ];
   setColors(newColors);
 }, [isDark]);

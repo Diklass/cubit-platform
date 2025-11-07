@@ -15,7 +15,6 @@ export const cubitTheme = createTheme({
   },
 
   palette: {
-    mode: 'light',
     background: {
       default: '#F0F5FA',
       paper: '#FFFFFF',
@@ -45,14 +44,13 @@ export const cubitTheme = createTheme({
 
   // ✅ Исправлено: создаём строго 25 теней
    shadows: [
-    'none', // 0
-    '0 1px 2px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.12)',          // 1
-    '0 2px 4px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.14)',          // 2
-    '0 4px 8px rgba(0,0,0,.12), 0 6px 12px rgba(0,0,0,.16)',         // 3
-    '0 6px 12px rgba(0,0,0,.14), 0 10px 18px rgba(0,0,0,.18)',       // 4
-    '0 8px 16px rgba(0,0,0,.16), 0 12px 22px rgba(0,0,0,.20)',       // 5
-    // 6–24 — одинаковые, но можно варьировать при желании
-    ...Array(19).fill('0 12px 24px rgba(0,0,0,.18), 0 16px 32px rgba(0,0,0,.24)'),
+  "none",
+  "0 5px 8px rgba(3,14,26,0.10)",
+  "0 5px 8px rgba(3,14,26,0.10)",
+  "0 5px 8px rgba(3,14,26,0.10)",
+  "0 5px 8px rgba(3,14,26,0.10)",
+  "0 5px 8px rgba(3,14,26,0.10)",
+  ...Array(19).fill("0 5px 8px rgba(3,14,26,0.10)"),
   ] as any,
 
  components: {

@@ -391,9 +391,7 @@ export const SubjectSidebar: React.FC<{
                               : "#DCE9F5",
                           color: isActive ? "#fff" : theme.palette.text.primary,
                           transition: "all .25s ease",
-                          boxShadow: isActive
-                            ? "0 3px 8px rgba(0,0,0,0.2)"
-                            : "0 2px 4px rgba(0,0,0,0.1)",
+                         
                           "&:hover": {
                             backgroundColor: isActive
                               ? theme.palette.primary.dark
@@ -450,9 +448,7 @@ export const SubjectSidebar: React.FC<{
                               color: isActive ? "#fff" : theme.palette.text.primary,
                               borderRadius: "999px 0 0 999px",
                               transition: "all .25s ease",
-                              boxShadow: isActive
-                                ? "0 3px 8px rgba(0,0,0,0.2)"
-                                : "0 2px 4px rgba(0,0,0,0.1)",
+                            
                               "&:hover": {
                                 backgroundColor: isActive
                                   ? theme.palette.primary.dark
@@ -491,9 +487,7 @@ export const SubjectSidebar: React.FC<{
                               color: isActive ? "#fff" : theme.palette.text.primary,
                               borderRadius: "0 999px 999px 0",
                               transition: "all .25s ease",
-                              boxShadow: isActive
-                                ? "0 3px 8px rgba(0,0,0,0.2)"
-                                : "0 2px 4px rgba(0,0,0,0.1)",
+                           
                               transform: isOpen ? "translateX(-3px)" : "translateX(0)",
                               "&:hover": {
                                 backgroundColor: isActive
