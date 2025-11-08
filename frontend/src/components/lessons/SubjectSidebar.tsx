@@ -163,7 +163,7 @@ export const SubjectSidebar: React.FC<{
 
     return (
       <Box
-        sx={(theme:Theme) => ({
+        sx={(theme: Theme) => ({
           position: "fixed",
           top: `${PANEL_TOP}px`,         // ✅ теперь точно под шапкой
           left: `${PANEL_LEFT}px`,
@@ -278,7 +278,7 @@ export const SubjectSidebar: React.FC<{
                           }}
                         >
                           <Search
-                            sx={(theme:Theme) => ({
+                            sx={(theme: Theme) => ({
                               opacity: 0.75,
                               color: isSearching
                                 ? theme.palette.primary.main
@@ -293,9 +293,22 @@ export const SubjectSidebar: React.FC<{
                   }}
                 />
 
-                <IconButton onClick={() => setCollapsed(true)} sx={{ flexShrink: 0 }}>
-                  <MenuOpen />
-                </IconButton>
+              <IconButton
+  onClick={() => setCollapsed(true)}
+  sx={(theme: Theme) => ({
+    flexShrink: 0,
+    color: theme.palette.text.secondary,
+    transition: 'color .2s ease',
+    '&:hover': {
+      color: theme.palette.primary.main,
+      backgroundColor: theme.palette.mode === 'dark' ? '#3b3b3b' : '#E8EEF7',
+    },
+    '&:focus-visible': { color: theme.palette.primary.main },
+    '&:active':        { color: theme.palette.primary.main },
+  })}
+>
+  <MenuOpen />
+</IconButton>
               </Box>
             ) : (
               // 🔹 Когда панель свернута — показываем иконки
@@ -308,25 +321,48 @@ export const SubjectSidebar: React.FC<{
                   mt: 1,
                 }}
               >
-                <IconButton onClick={() => setCollapsed(false)}>
-                  <Menu />
-                </IconButton>
+               <IconButton
+  onClick={() => setCollapsed(false)}
+  sx={(theme: Theme) => ({
+    color: theme.palette.text.secondary,
+    transition: 'color .2s ease',
+    '&:hover': {
+      color: theme.palette.primary.main,
+      backgroundColor: theme.palette.mode === 'dark' ? '#3b3b3b' : '#E8EEF7',
+    },
+    '&:focus-visible': { color: theme.palette.primary.main },
+    '&:active':        { color: theme.palette.primary.main },
+  })}
+>
+  <Menu />
+</IconButton>
 
-                <IconButton
-                  onClick={() => {
-                    setCollapsed(false);
-                    setTimeout(() => {
-                      searchRef.current?.focus();
-                      startSearchAnimation(1600);
-                    }, 500);
-                  }}
-                >
-                  <Search />
-                </IconButton>
+
+               <IconButton
+  onClick={() => {
+    setCollapsed(false);
+    setTimeout(() => {
+      searchRef.current?.focus();
+      startSearchAnimation(1600);
+    }, 500);
+  }}
+  sx={(theme: Theme) => ({
+    color:
+      isSearching
+                                ? theme.palette.primary.main
+                                : theme.palette.text.secondary,
+    "&:hover": {
+      backgroundColor:
+        theme.palette.mode === "dark" ? "#3b3b3b" : "#E8EEF7",
+    },
+  })}
+>
+  <Search />
+</IconButton>
 
                 <IconButton
                   onClick={() => navigate(`/lessons/${subjectId}`)}
-                  sx={(theme:Theme) => ({
+                  sx={(theme: Theme) => ({
                     color:
                       currentPath === `/lessons/${subjectId}`
                         ? theme.palette.primary.main
@@ -341,13 +377,17 @@ export const SubjectSidebar: React.FC<{
                 </IconButton>
 
                 {modules.map((m) => {
+                  const containsSelectedLesson = m.lessons.some((l) => l.id === currentLessonId);
+
+                  // активен сам модуль или активен урок внутри него
                   const isActive =
-                    currentPath === `/lessons/${subjectId}/modules/${m.id}`;
+                    currentPath === `/lessons/${subjectId}/modules/${m.id}` ||
+                    containsSelectedLesson;
                   return (
                     <IconButton
                       key={m.id}
                       onClick={() => navigate(`/lessons/${subjectId}/modules/${m.id}`)}
-                      sx={(theme:Theme) => ({
+                      sx={(theme: Theme) => ({
                         color: isActive
                           ? theme.palette.primary.main
                           : theme.palette.text.secondary,
@@ -373,7 +413,7 @@ export const SubjectSidebar: React.FC<{
                   <motion.div {...springTap}>
                     <Box
                       onClick={() => navigate(`/lessons/${subjectId}`)}
-                      sx={(theme:Theme) => {
+                      sx={(theme: Theme) => {
                         const isActive = currentPath === `/lessons/${subjectId}`;
                         return {
                           flexGrow: 1,
@@ -391,7 +431,7 @@ export const SubjectSidebar: React.FC<{
                               : "#DCE9F5",
                           color: isActive ? "#fff" : theme.palette.text.primary,
                           transition: "all .25s ease",
-                         
+
                           "&:hover": {
                             backgroundColor: isActive
                               ? theme.palette.primary.dark
@@ -430,8 +470,12 @@ export const SubjectSidebar: React.FC<{
                       <motion.div {...springTap}>
                         <Box
                           onClick={() => navigate(`/lessons/${subjectId}/modules/${m.id}`)}
-                          sx={(theme:Theme) => {
-                            const isActive = currentPath === `/lessons/${subjectId}/modules/${m.id}`;
+                          sx={(theme: Theme) => {
+                            const containsSelectedLesson = m.lessons.some((l) => l.id === currentLessonId);
+
+                            const isActive =
+                              currentPath === `/lessons/${subjectId}/modules/${m.id}` ||
+                              containsSelectedLesson;
                             return {
                               flexGrow: 1,
                               display: "flex",
@@ -448,7 +492,7 @@ export const SubjectSidebar: React.FC<{
                               color: isActive ? "#fff" : theme.palette.text.primary,
                               borderRadius: "999px 0 0 999px",
                               transition: "all .25s ease",
-                            
+
                               "&:hover": {
                                 backgroundColor: isActive
                                   ? theme.palette.primary.dark
@@ -468,14 +512,18 @@ export const SubjectSidebar: React.FC<{
                         <IconButton
                           size="small"
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-  e.stopPropagation();
-  setExpanded((prev) => ({
-    ...prev,
-    [m.id]: !prev[m.id],
-  }));
-}}
-                          sx={(theme:Theme) => {
-                            const isActive = currentPath === `/lessons/${subjectId}/modules/${m.id}`;
+                            e.stopPropagation();
+                            setExpanded((prev) => ({
+                              ...prev,
+                              [m.id]: !prev[m.id],
+                            }));
+                          }}
+                          sx={(theme: Theme) => {
+                            const containsSelectedLesson = m.lessons.some((l) => l.id === currentLessonId);
+
+                            const isActive =
+                              currentPath === `/lessons/${subjectId}/modules/${m.id}` ||
+                              containsSelectedLesson;
                             return {
                               height: 44,
                               width: 44,
@@ -487,7 +535,7 @@ export const SubjectSidebar: React.FC<{
                               color: isActive ? "#fff" : theme.palette.text.primary,
                               borderRadius: "0 999px 999px 0",
                               transition: "all .25s ease",
-                           
+
                               transform: isOpen ? "translateX(-3px)" : "translateX(0)",
                               "&:hover": {
                                 backgroundColor: isActive
@@ -507,7 +555,7 @@ export const SubjectSidebar: React.FC<{
                     {/* === Уроки === */}
                     <Collapse in={isOpen}>
                       <Box
-                        sx={(theme:Theme) => ({
+                        sx={(theme: Theme) => ({
                           backgroundColor:
                             theme.palette.mode === "dark"
                               ? "#2b2b2b"
@@ -524,7 +572,7 @@ export const SubjectSidebar: React.FC<{
                             <Box
                               key={lesson.id}
                               onClick={() => navigate(`/lessons/view/${lesson.id}`)}
-                              sx={(theme:Theme) => ({
+                              sx={(theme: Theme) => ({
                                 px: "16px",
                                 py: selected ? "5px" : "10px",
                                 my: "6px",
@@ -554,9 +602,9 @@ export const SubjectSidebar: React.FC<{
                                     size="small"
                                     color="error"
                                     onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-  e.stopPropagation();
-  handleDeleteLesson(lesson.id);
-}}
+                                      e.stopPropagation();
+                                      handleDeleteLesson(lesson.id);
+                                    }}
                                   >
                                     <Delete fontSize="small" color="error" />
                                   </IconButton>

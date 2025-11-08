@@ -65,7 +65,11 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import type { Theme } from "@mui/material/styles";
 import SaveIcon from "@mui/icons-material/Save";
 
-
+import { Tooltip } from "@mui/material";
+import ArrowBackIosNewRoundedIcon from "@mui/icons-material/ArrowBackIosNewRounded";
+import ArrowForwardIosRoundedIcon from "@mui/icons-material/ArrowForwardIosRounded";
+import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
+import Crop32RoundedIcon from "@mui/icons-material/Crop32Rounded";
 
 
 
@@ -203,6 +207,39 @@ const loadModules = async () => {
     console.error("Ошибка загрузки модулей:", err);
   }
 };
+
+const sidebarIcon = (theme: Theme) => ({
+  color: theme.palette.text.secondary,
+  transition: 'color .2s ease',
+  '&:hover': {
+    color: theme.palette.primary.main,
+    backgroundColor:
+      theme.palette.mode === 'dark' ? '#3b3b3b' : '#E8EEF7',
+  },
+  '&:focus-visible': { color: theme.palette.primary.main },
+  '&:active':        { color: theme.palette.primary.main },
+});
+
+const blockIcon = (theme: Theme) => ({
+  width: 40,
+  height: 40,
+  borderRadius: "12px",
+  ...sidebarIcon(theme),
+});
+
+const actionIcon = (theme: Theme) => ({
+  width: 40,
+  height: 40,
+  borderRadius: 12,
+  color: theme.palette.primary.main,           // базово — синий
+  transition: "color .2s ease, background-color .2s ease, transform .15s ease",
+  "&:hover": {
+    color: theme.palette.text.secondary,       // ховер — серый
+    backgroundColor: theme.palette.mode === "dark" ? "#3b3b3b" : "#E8EEF7",
+  },
+  "&:active": { transform: "scale(0.97)" },
+  "&.Mui-disabled": { color: theme.palette.action.disabled },
+});
 
 // подгружаем модули, когда урок загружен
 useEffect(() => {
@@ -598,6 +635,7 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
                               !d.sections[secIdx].collapsed;
                           });
                         }}
+                        sx={(theme: Theme) => sidebarIcon(theme)}
                       >
                         {section.collapsed ? (
                           <ExpandMoreRoundedIcon fontSize="small" />
@@ -618,15 +656,12 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
                             }
                           });
                         }}
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "12px",
-                          color: theme.palette.text.primary,
-                          "&:hover": {
-                            backgroundColor: theme.palette.action.hover,
-                          },
-                        }}
+                        sx={(theme: Theme) => ({
+    width: 32,
+    height: 32,
+    borderRadius: "12px",
+    ...sidebarIcon(theme),
+  })}
                       >
                         <ArrowUpwardRoundedIcon fontSize="small" />
                       </IconButton>
@@ -643,15 +678,12 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
                             }
                           });
                         }}
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "12px",
-                          color: theme.palette.text.primary,
-                          "&:hover": {
-                            backgroundColor: theme.palette.action.hover,
-                          },
-                        }}
+                        sx={(theme: Theme) => ({
+    width: 32,
+    height: 32,
+    borderRadius: "12px",
+    ...sidebarIcon(theme),
+  })}
                       >
                         <ArrowDownwardRoundedIcon fontSize="small" />
                       </IconButton>
@@ -740,27 +772,31 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
                               )}
 
                               {/* кнопка ⋯ для блока */}
-                              <IconButton
-                                size="small"
-                                className="block-tools"
-                                sx={{
-                                  position: "absolute",
-                                  top: 6,
-                                  right: 6,
-                                  opacity: blockMenuAnchor ? 1 : 0,
-                                  transform: "scale(0.95)",
-                                  transition: "all 0.2s ease",
-                                }}
-                                onClick={(
-                                  e: React.MouseEvent<HTMLButtonElement>
-                                ) => {
-                                  e.stopPropagation();
-                                  setBlockMenuAnchor(e.currentTarget);
-                                  setSelectedBlock({ secIdx, idx });
-                                }}
-                              >
-                                <MoreVertIcon fontSize="small" />
-                              </IconButton>
+<IconButton
+  size="small"
+  className="block-tools"
+  sx={(theme: Theme) => ({
+    position: "absolute",
+    top: 6,
+    right: 6,
+    opacity: blockMenuAnchor ? 1 : 0,
+    transform: "scale(0.95)",
+
+    width: 32,
+    height: 32,
+    borderRadius: "12px",
+
+    // ✅ никаких transition здесь
+    ...sidebarIcon(theme), // содержит transition, но только color
+  })}
+  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setBlockMenuAnchor(e.currentTarget);
+    setSelectedBlock({ secIdx, idx });
+  }}
+>
+  <MoreVertIcon fontSize="small" />
+</IconButton>
                             </Box>
                           ))}
 
@@ -919,8 +955,8 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
                             <IconButton
                               onClick={() => setFabOpen(!fabOpen)}
                               sx={(theme: Theme) => ({
-                                width: 68,
-                                height: 68,
+                                width: 58,
+                                height: 58,
                                 borderRadius: "50%",
                                 backgroundColor: fabOpen
                                   ? theme.palette.primary.main
@@ -930,8 +966,7 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
                                 color: fabOpen
                                   ? "#fff"
                                   : theme.palette.text.primary,
-                                boxShadow:
-                                  "0 6px 20px rgba(0,0,0,0.25)",
+                               
                                 "&:hover": {
                                   backgroundColor: fabOpen
                                     ? theme.palette.primary.dark
@@ -1008,23 +1043,19 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
   {/* === Действия меню блока === */}
   <IconButton
     size="small"
+    sx={(theme: Theme) => blockIcon(theme)}
     onClick={() => {
       if (!selectedBlock) return;
       alert("Изменение контента пока не реализовано");
     }}
-    sx={{
-      width: 40,
-      height: 40,
-      borderRadius: "12px",
-      color: theme.palette.text.primary,
-      "&:hover": { backgroundColor: theme.palette.action.hover },
-    }}
+
   >
     <EditOutlinedIcon fontSize="small" />
   </IconButton>
 
   <IconButton
     size="small"
+    sx={(theme: Theme) => blockIcon(theme)}
     onClick={() => {
       if (!selectedBlock) return;
       applyChange((d) => {
@@ -1035,19 +1066,14 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
         }
       });
     }}
-    sx={{
-      width: 40,
-      height: 40,
-      borderRadius: "12px",
-      color: theme.palette.text.primary,
-      "&:hover": { backgroundColor: theme.palette.action.hover },
-    }}
+
   >
     <ArrowUpwardRoundedIcon fontSize="small" />
   </IconButton>
 
   <IconButton
     size="small"
+    sx={(theme: Theme) => blockIcon(theme)}
     onClick={() => {
       if (!selectedBlock) return;
       applyChange((d) => {
@@ -1058,13 +1084,6 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
           d.sections[secIdx].children.splice(idx + 1, 0, moved);
         }
       });
-    }}
-    sx={{
-      width: 40,
-      height: 40,
-      borderRadius: "12px",
-      color: theme.palette.text.primary,
-      "&:hover": { backgroundColor: theme.palette.action.hover },
     }}
   >
     <ArrowDownwardRoundedIcon fontSize="small" />
@@ -1095,6 +1114,7 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
   </IconButton>
 </MuiMenu>
 
+
 {/* === Нижняя плавающая панель действий === */}
 <Box
   sx={{
@@ -1102,59 +1122,90 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
     bottom: 16,
     left: "50%",
     transform: "translateX(-50%)",
-    display: "flex",
-    alignItems: "center",
     zIndex: 100,
   }}
 >
-  <Paper
-    elevation={5}
-    sx={(theme: Theme) => ({
-      borderRadius: "999px",
-      px: 2.5,
-      py: 1,
-      display: "flex",
-      alignItems: "center",
-      gap: 1.2,
-      backdropFilter: "blur(16px)",
-      backgroundColor:
-        theme.palette.mode === "dark"
-          ? "rgba(30,30,30,0.75)"
-          : "rgba(255,255,255,0.75)",
-      border: `1px solid ${
-        theme.palette.mode === "dark"
-          ? "rgba(255,255,255,0.08)"
-          : "rgba(0,0,0,0.08)"
-      }`,
-    })}
-  >
-    <IconButton onClick={handleUndo} disabled={historyIndex <= 0}>
-      <ArrowUpwardRoundedIcon sx={{ transform: "rotate(-90deg)" }} />
-    </IconButton>
+ <Paper
+  elevation={5}
+  sx={(theme: Theme) => ({
+    borderRadius: "999px",
+    px: 2,
+    py: 0.75,
+    display: "flex",
+    alignItems: "center",
+    gap: 0.5,
+    backdropFilter: "blur(16px)",
+    backgroundColor:
+      theme.palette.mode === "dark" ? "rgba(30,30,30,0.75)" : "rgba(255,255,255,0.75)",
+    border: `1px solid ${
+      theme.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
+    }`,
+  })}
+>
+  {/* Undo */}
+  <Tooltip title="Отменить">
+    <span>
+      <IconButton
+        onClick={handleUndo}
+        disabled={historyIndex <= 0}
+        sx={(theme: Theme) => actionIcon(theme)}
+      >
+        <ArrowBackIosNewRoundedIcon />
+      </IconButton>
+    </span>
+  </Tooltip>
+
+  {/* Redo */}
+  <Tooltip title="Повторить">
+    <span>
+      <IconButton
+        onClick={handleRedo}
+        disabled={historyIndex >= history.length - 1}
+        sx={(theme: Theme) => actionIcon(theme)}
+      >
+        <ArrowForwardIosRoundedIcon />
+      </IconButton>
+    </span>
+  </Tooltip>
+
+  {/* Save (outline) */}
+  <Tooltip title="Сохранить">
     <IconButton
-      onClick={handleRedo}
-      disabled={historyIndex >= history.length - 1}
+      onClick={handleSave}
+      sx={(theme: Theme) => actionIcon(theme)}
     >
-      <ArrowUpwardRoundedIcon sx={{ transform: "rotate(90deg)" }} />
+      <SaveOutlinedIcon />
     </IconButton>
-    <Button onClick={handleSave} startIcon={<SaveIcon />}>
-      Сохранить
-    </Button>
-    <Button
-      startIcon={<AddRoundedIcon />}
+  </Tooltip>
+
+  {/* New Section — квадрат в рамке */}
+  <Tooltip title="Новая секция">
+    <IconButton
       onClick={() =>
         applyChange((d) =>
-          d.sections.push({
-            type: "section",
-            title: "Новая секция",
-            children: [],
-          })
+          d.sections.push({ type: "section", title: "Новая секция", children: [] })
         )
       }
+      sx={(theme: Theme) => actionIcon(theme)}
     >
-      Секция
-    </Button>
-  </Paper>
+      <Crop32RoundedIcon />
+    </IconButton>
+  </Tooltip>
+
+  {/* Плюс — будущая область теста */}
+  <Tooltip title="Добавить область теста">
+    <IconButton
+      onClick={() => {
+        // пока просто заглушка, позже подключим логику “области теста”
+        console.log("TODO: добавить область теста");
+      }}
+      sx={(theme: Theme) => actionIcon(theme)}
+    >
+      <AddRoundedIcon />
+    </IconButton>
+  </Tooltip>
+</Paper>
+
 </Box>
 
 {/* === Меню выбора типа контента === */}
