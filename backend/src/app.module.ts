@@ -18,6 +18,8 @@ import { SubjectsModule } from './subjects/subjects.module';
 
 import { UploadsModule } from './uploads/uploads.module';
 
+import { QuizModule } from './quiz/quiz.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -28,6 +30,7 @@ import { UploadsModule } from './uploads/uploads.module';
     ChatsModule,
     SubjectsModule,
     UploadsModule,
+    QuizModule,
   ],
   controllers: [AppController, FilesController,], 
   providers: [

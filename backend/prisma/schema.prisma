@@ -33,6 +33,7 @@ model User {
 
   chatSessionsAsStudent ChatSession[] @relation("ChatSessionStudent")
   chatSessionsAsTeacher ChatSession[] @relation("ChatSessionTeacher")
+  QuizAttempt           QuizAttempt[]
 }
 
 model Subject {
@@ -44,16 +45,16 @@ model Subject {
 }
 
 model Module {
-  id         String    @id @default(uuid())
-  title      String
-  subjectId  String
-  subject    Subject   @relation(fields: [subjectId], references: [id])
-  parentId   String?   
-  parent     Module?   @relation("SubModules", fields: [parentId], references: [id])
-  children   Module[]  @relation("SubModules")
-  lessons    Lesson[]
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id        String   @id @default(uuid())
+  title     String
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  parentId  String?
+  parent    Module?  @relation("SubModules", fields: [parentId], references: [id])
+  children  Module[] @relation("SubModules")
+  lessons   Lesson[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Lesson {
@@ -67,6 +68,7 @@ model Lesson {
   module    Module?  @relation(fields: [moduleId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  Quiz      Quiz?
 }
 
 model Room {
@@ -80,8 +82,8 @@ model Room {
   members      RoomMember[]
   chatSessions ChatSession[]
 
-  bgColor    String?   @default("#FFFFFF")
-  bgImageUrl String? 
+  bgColor    String? @default("#FFFFFF")
+  bgImageUrl String?
 }
 
 model RoomMember {
@@ -96,24 +98,24 @@ model RoomMember {
 }
 
 model Message {
-  id            String       @id @default(uuid())
+  id            String   @id @default(uuid())
   authorId      String?
   text          String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @default(now()) @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
   roomId        String?
   chatSessionId String?
 
   room        Room?        @relation(fields: [roomId], references: [id])
   chatSession ChatSession? @relation(fields: [chatSessionId], references: [id])
   author      User?        @relation("UserMessages", fields: [authorId], references: [id])
-  attachments Attachment[]  
+  attachments Attachment[]
 }
 
 model Attachment {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   url       String
-  message   Message  @relation(fields: [messageId], references: [id])
+  message   Message @relation(fields: [messageId], references: [id])
   messageId String
 
   createdAt DateTime @default(now())
@@ -130,4 +132,123 @@ model ChatSession {
   student  User      @relation("ChatSessionStudent", fields: [studentId], references: [id])
   teacher  User      @relation("ChatSessionTeacher", fields: [teacherId], references: [id])
   messages Message[]
+}
+
+model Quiz {
+  id       String @id @default(uuid())
+  lessonId String @unique
+  lesson   Lesson @relation(fields: [lessonId], references: [id])
+
+  title       String  @default("Тест по уроку")
+  isPublished Boolean @default(false)
+
+  passThreshold    Int     @default(70) // проходной порог (0–100)
+  maxAttempts      Int? // null = бесконечно
+  shuffleQuestions Boolean @default(false)
+  shuffleOptions   Boolean @default(false)
+  timeLimitSec     Int? // null = без ограничений
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QuizQuestion {
+  id     String @id @default(uuid())
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id])
+
+  order       Int
+  type        QuestionType
+  text        String
+  explanation String? // показываем после проверки (опционально)
+
+  points   Int     @default(1)
+  required Boolean @default(true)
+
+  options QuizOption[]
+
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  QuizAnswer QuizAnswer[]
+}
+
+model QuizOption {
+  id         String       @id @default(uuid())
+  questionId String
+  question   QuizQuestion @relation(fields: [questionId], references: [id])
+
+  order     Int
+  text      String
+  isCorrect Boolean @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+model QuizAttempt {
+  id     String @id @default(uuid())
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  tryIndex    Int
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+  durationSec Int?
+
+  score   Int     @default(0)
+  percent Int     @default(0)
+  passed  Boolean @default(false)
+
+  answers QuizAnswer[]
+
+  createdAt DateTime @default(now())
+}
+
+model QuizAnswer {
+  id        String      @id @default(uuid())
+  attemptId String
+  attempt   QuizAttempt @relation(fields: [attemptId], references: [id])
+
+  questionId String
+  question   QuizQuestion @relation(fields: [questionId], references: [id])
+
+  // SINGLE / DROPDOWN
+  selectedOptionId String?
+
+  // MULTI
+  selectedOptionIds String[] @default([])
+
+  // TEXT
+  textValue String?
+
+  isCorrect Boolean?
+
+  createdAt DateTime @default(now())
+}
+
+enum QuestionType {
+  SINGLE // один верный вариант
+  MULTI // несколько верных вариантов
+  SHORT_TEXT // ответ вводится вручную
+  DROPDOWN // выбрать из списка (как SINGLE, но UI другой)
+}
+
+model LessonProgress {
+  id               String            @id @default(uuid())
+  lessonId         String
+  userId           String
+  completedAt      DateTime?
+  completionReason CompletionReason?
+
+  @@unique([lessonId, userId])
+}
+
+enum CompletionReason {
+  PASSED_QUIZ
+  SCROLLED_TO_END
 }

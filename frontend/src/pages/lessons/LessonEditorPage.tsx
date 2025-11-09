@@ -71,6 +71,7 @@ import ArrowForwardIosRoundedIcon from "@mui/icons-material/ArrowForwardIosRound
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import Crop32RoundedIcon from "@mui/icons-material/Crop32Rounded";
 
+import { QuizBlock } from "../../components/quiz/QuizBlock";
 
 
 
@@ -1002,6 +1003,10 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
     </AnimatePresence>
   </SortableContext>
 </DndContext>
+
+   <Box sx={{ mt: 6 }}>
+     <QuizBlock lessonId={id!} />
+   </Box>
 </MainContentLayout>
 
 {/* === Меню блока (⋯) === */}
@@ -1286,5 +1291,7 @@ setSections((prev) => arrayMove(prev, oldIndex, newIndex));
     <AttachFileIcon fontSize="small" sx={{ mr: 1 }} /> Файл
   </MenuItem>
 </Menu>
+
 </Box>
+
 )};
