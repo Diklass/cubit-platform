@@ -193,5 +193,82 @@ async checkQuiz(lessonId: string, answers: Record<string, any>) {
   };
 }
 
+async getAttempts(lessonId: string) {
+  const quiz = await this.prisma.quiz.findUnique({
+    where: { lessonId },
+    select: { id: true }
+  });
+
+  if (!quiz) throw new NotFoundException("Quiz not found");
+
+  return this.prisma.quizAttempt.findMany({
+    where: { quizId: quiz.id },
+    orderBy: [{ submittedAt: "desc" }],
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          role: true,
+        }
+      }
+    }
+  });
+}
+
+async submitAttempt(lessonId: string, userId: string, answers: Record<string, any>) {
+  // 1) найдём тест
+  const quiz = await this.prisma.quiz.findUnique({
+    where: { lessonId },
+    include: {
+      questions: {
+        include: { options: true },
+        orderBy: { order: 'asc' },
+      },
+      attempts: true
+    }
+  });
+
+  if (!quiz) throw new NotFoundException("Quiz not found");
+
+  // 2) номер попытки
+  const tryIndex = quiz.attempts.length + 1;
+
+  // 3) считаем правильность
+  const result = await this.checkQuiz(lessonId, answers);
+
+  // 4) создаём attempt
+  const attempt = await this.prisma.quizAttempt.create({
+    data: {
+      quizId: quiz.id,
+      userId,
+      tryIndex,
+      score: result.correctCount,
+      percent: result.percent,
+      passed: result.passed,
+      submittedAt: new Date(),
+    },
+  });
+
+  // 5) сохраняем ответы
+  for (const q of quiz.questions) {
+    const userAnswer = answers[q.id];
+
+    await this.prisma.quizAnswer.create({
+      data: {
+        attemptId: attempt.id,
+        questionId: q.id,
+        selectedOptionId:
+          typeof userAnswer === "string" ? userAnswer : undefined,
+        selectedOptionIds: Array.isArray(userAnswer) ? userAnswer : [],
+        textValue: typeof userAnswer === "string" ? userAnswer : null,
+        isCorrect: result.details.find((d) => d.questionId === q.id)?.correct,
+      },
+    });
+  }
+
+  return result;
+}
+
 
 }

@@ -11,6 +11,7 @@ import DOMPurify from "dompurify";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { TestRunner } from "../quiz/TestRunner";
+import { TestAttempts } from "../quiz/TestAttempts";
 
 type Block = { type: string; content: string };
 type Lesson = { id: string; title: string; content: string | null };
@@ -228,14 +229,26 @@ export const LessonContent: React.FC<Props> = ({ lessonId }) => {
           </Box>
         ))}
 
-        {quiz && (
-  <Box sx={{ mt: 4, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-    <Typography variant="h5" sx={{ mb: 2 }}>
-      Тест: {quiz.title}
-    </Typography>
+{quiz && (
+  <>
+    <Box
+      sx={{
+        mt: 4,
+        p: 2,
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 2,
+      }}
+    >
+      <Typography variant="h5" sx={{ mb: 2 }}>
+        Тест: {quiz.title}
+      </Typography>
 
-    <TestRunner quiz={quiz} lessonId={lessonId} />
-  </Box>
+      <TestRunner quiz={quiz} lessonId={lessonId} />
+    </Box>
+
+    {/* ✅ Мини-статистика */}
+    <TestAttempts lessonId={lessonId} />
+  </>
 )}
       </Box>
     </Box>

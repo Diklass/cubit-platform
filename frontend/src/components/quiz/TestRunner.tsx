@@ -24,6 +24,12 @@ export function TestRunner({ quiz, lessonId }: any) {
   };
 
   const handleSubmit = async () => {
+      const res = await api.post(`/lessons/${lessonId}/quiz/submit`, {
+    answers,
+  });
+   console.log("Результат:", res.data);
+  alert(`Ваш результат: ${res.data.percent}%`);
+  
     setLoading(true);
     setResult(null);
 

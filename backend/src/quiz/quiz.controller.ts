@@ -5,12 +5,16 @@ import {
   Patch,
   Param,
   Body,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QuestionType } from '@prisma/client';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
+
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('lessons')
 export class QuizController {
@@ -21,6 +25,12 @@ export class QuizController {
   async getQuiz(@Param('lessonId') lessonId: string) {
     return this.quizService.getQuizByLesson(lessonId);
   }
+
+  // GET /lessons/:lessonId/quiz/attempts
+@Get(':lessonId/quiz/attempts')
+async getAttempts(@Param('lessonId') lessonId: string) {
+  return this.quizService.getAttempts(lessonId);
+}
 
   // POST /lessons/:lessonId/quiz
   @Post(':lessonId/quiz')
@@ -55,12 +65,17 @@ export class QuizController {
     return this.quizService.getPublicQuiz(lessonId);
   }
 
-  @Post(':lessonId/quiz/submit')
-async submit(
+  
+
+@UseGuards(JwtAuthGuard)
+@Post(':lessonId/quiz/submit')
+async submitQuiz(
   @Param('lessonId') lessonId: string,
-  @Body() dto: SubmitQuizDto,
+  @Body() body: { answers: Record<string, any> },
+  @Req() req
 ) {
-  return this.quizService.checkQuiz(lessonId, dto.answers);
+  const user = req.user;
+  return this.quizService.submitAttempt(lessonId, user.id, body.answers);
 }
 @Post(':lessonId/quiz/check')
 async check(
@@ -69,4 +84,7 @@ async check(
 ) {
   return this.quizService.checkQuiz(lessonId, body.answers);
 }
+
+
+
 }

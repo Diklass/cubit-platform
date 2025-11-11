@@ -19,3 +19,8 @@ export const getPublicQuiz = (lessonId: string) =>
 export function submitQuiz(lessonId: string, answers: any) {
   return api.post(`/lessons/${lessonId}/quiz/submit`, { answers });
 }
+
+export async function getQuizAttempts(lessonId: string) {
+  const res = await api.get(`/lessons/${lessonId}/quiz/attempts`);
+  return res.data;
+}
