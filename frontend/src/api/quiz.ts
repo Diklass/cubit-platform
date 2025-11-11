@@ -15,3 +15,7 @@ export const updateQuiz = (lessonId: string, data: any) =>
 // публичная версия (ученик)
 export const getPublicQuiz = (lessonId: string) =>
   api.get(`/lessons/${lessonId}/quiz/public`);
+
+export function submitQuiz(lessonId: string, answers: any) {
+  return api.post(`/lessons/${lessonId}/quiz/submit`, { answers });
+}

@@ -10,6 +10,7 @@ import {
 import DOMPurify from "dompurify";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { TestRunner } from "../quiz/TestRunner";
 
 type Block = { type: string; content: string };
 type Lesson = { id: string; title: string; content: string | null };
@@ -20,13 +21,25 @@ interface Props {
 
 export const LessonContent: React.FC<Props> = ({ lessonId }) => {
   const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [quiz, setQuiz] = useState<any | null>(null);   // ✅ перенесли сюда
   const theme = useTheme();
 
+  // Загрузка урока
   useEffect(() => {
     if (!lessonId) return;
     api.get<Lesson>(`/subjects/lessons/${lessonId}`).then((r) => setLesson(r.data));
   }, [lessonId]);
 
+  // ✅ всегда стоит над любыми return!
+  useEffect(() => {
+    if (!lessonId) return;
+
+    api.get(`/lessons/${lessonId}/quiz/public`)
+      .then((r) => setQuiz(r.data))
+      .catch(() => setQuiz(null));
+  }, [lessonId]);
+
+  // ✅ После всех хуков — проверки
   if (!lessonId) return <Typography>Выберите урок</Typography>;
   if (!lesson) return <Typography>Загрузка...</Typography>;
 
@@ -37,6 +50,8 @@ export const LessonContent: React.FC<Props> = ({ lessonId }) => {
   } catch {
     sections = [];
   }
+
+
 
   const exportToPDF = async () => {
     if (!lesson) return;
@@ -212,6 +227,16 @@ export const LessonContent: React.FC<Props> = ({ lessonId }) => {
             {sIdx !== sections.length - 1 && <Divider sx={{ my: "20px" }} />}
           </Box>
         ))}
+
+        {quiz && (
+  <Box sx={{ mt: 4, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+    <Typography variant="h5" sx={{ mb: 2 }}>
+      Тест: {quiz.title}
+    </Typography>
+
+    <TestRunner quiz={quiz} lessonId={lessonId} />
+  </Box>
+)}
       </Box>
     </Box>
   );

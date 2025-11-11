@@ -10,6 +10,7 @@ import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QuestionType } from '@prisma/client';
+import { SubmitQuizDto } from './dto/submit-quiz.dto';
 
 @Controller('lessons')
 export class QuizController {
@@ -53,4 +54,19 @@ export class QuizController {
   async getPublic(@Param('lessonId') lessonId: string) {
     return this.quizService.getPublicQuiz(lessonId);
   }
+
+  @Post(':lessonId/quiz/submit')
+async submit(
+  @Param('lessonId') lessonId: string,
+  @Body() dto: SubmitQuizDto,
+) {
+  return this.quizService.checkQuiz(lessonId, dto.answers);
+}
+@Post(':lessonId/quiz/check')
+async check(
+  @Param('lessonId') lessonId: string,
+  @Body() body: { answers: Record<string, any> }
+) {
+  return this.quizService.checkQuiz(lessonId, body.answers);
+}
 }
