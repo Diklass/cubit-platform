@@ -20,6 +20,8 @@ import { UploadsModule } from './uploads/uploads.module';
 
 import { QuizModule } from './quiz/quiz.module';
 
+import { StudentsModule } from './students/students.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -31,6 +33,7 @@ import { QuizModule } from './quiz/quiz.module';
     SubjectsModule,
     UploadsModule,
     QuizModule,
+    StudentsModule,
   ],
   controllers: [AppController, FilesController,], 
   providers: [

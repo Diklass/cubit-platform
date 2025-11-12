@@ -34,6 +34,8 @@ model User {
   chatSessionsAsStudent ChatSession[] @relation("ChatSessionStudent")
   chatSessionsAsTeacher ChatSession[] @relation("ChatSessionTeacher")
   QuizAttempt           QuizAttempt[]
+
+  subjectLinks SubjectStudent[]
 }
 
 model Subject {
@@ -42,6 +44,9 @@ model Subject {
   modules   Module[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  students SubjectStudent[]
+  groups   StudentGroup[]
 }
 
 model Module {
@@ -251,4 +256,35 @@ model LessonProgress {
 enum CompletionReason {
   PASSED_QUIZ
   SCROLLED_TO_END
+}
+
+model SubjectStudent {
+  id        String  @id @default(uuid())
+  subjectId String
+  userId    String
+  groupId   String?
+
+  subject Subject       @relation(fields: [subjectId], references: [id])
+  user    User          @relation(fields: [userId], references: [id])
+  group   StudentGroup? @relation(fields: [groupId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([subjectId, userId]) // студент может быть в предмете только один раз
+  @@index([groupId])
+  @@index([userId])
+  @@index([subjectId])
+}
+
+model StudentGroup {
+  id        String @id @default(uuid())
+  name      String
+  subjectId String
+
+  subject  Subject          @relation(fields: [subjectId], references: [id])
+  students SubjectStudent[]
+
+  createdAt DateTime @default(now())
+
+  @@index([subjectId])
 }

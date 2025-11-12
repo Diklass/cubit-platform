@@ -17,6 +17,10 @@ import ModuleOverviewPage from "./pages/lessons/ModuleOverviewPage";
 import LessonContentPage from "./pages/lessons/LessonContentPage";
 import LessonEditorPage from "./pages/lessons/LessonEditorPage";
 
+import StudentsPage from "./pages/students/StudentsPage";
+import SubjectGroupsPage from "./pages/students/SubjectGroupsPage";
+import GroupStudentsPage from "./pages/students/GroupStudentsPage";
+
 function App() {
   return (
     <Routes>
@@ -147,6 +151,46 @@ function App() {
           </PrivateRoute>
         }
       />
+
+      {/* === Учащиеся === */}
+<Route
+  path="/students"
+  element={
+    <PrivateRoute>
+      <RoleRoute allowRoles={["ADMIN", "TEACHER"]}>
+        <Layout>
+          <StudentsPage />
+        </Layout>
+      </RoleRoute>
+    </PrivateRoute>
+  }
+/>
+
+<Route
+  path="/students/:subjectId"
+  element={
+    <PrivateRoute>
+      <RoleRoute allowRoles={["ADMIN", "TEACHER"]}>
+        <Layout>
+          <SubjectGroupsPage />
+        </Layout>
+      </RoleRoute>
+    </PrivateRoute>
+  }
+/>
+
+<Route
+  path="/students/:subjectId/:groupId"
+  element={
+    <PrivateRoute>
+      <RoleRoute allowRoles={["ADMIN", "TEACHER"]}>
+        <Layout>
+          <GroupStudentsPage />
+        </Layout>
+      </RoleRoute>
+    </PrivateRoute>
+  }
+/>
 
       {/* === 404 === */}
       <Route

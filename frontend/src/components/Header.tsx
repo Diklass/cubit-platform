@@ -21,10 +21,13 @@ export const Header: React.FC = () => {
   const { toggleTheme } = useThemeContext();
   const headerRef = useRef<HTMLDivElement | null>(null);
 
-  const tabs = [
-    { key: 'lessons', label: 'Уроки', to: '/lessons' },
-    { key: 'rooms',   label: 'Комнаты', to: '/rooms' },
-  ] as const;
+const tabs = [
+  { key: "lessons", label: "Уроки", to: "/lessons" },
+  { key: "rooms", label: "Комнаты", to: "/rooms" },
+  ...(user?.role === "TEACHER" || user?.role === "ADMIN"
+    ? [{ key: "students", label: "Учащиеся", to: "/students" }]
+    : []),
+] as const;
 
   useLayoutEffect(() => {
   const setVar = () => {
