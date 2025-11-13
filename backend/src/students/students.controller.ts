@@ -121,4 +121,14 @@ export class StudentsController {
 async getGroupStats(@Param('groupId') groupId: string) {
   return this.students.getGroupStats(groupId);
 }
+
+@Get(':subjectId/student/:userId/stats')
+async getStudentStats(
+  @Param('subjectId') subjectId: string,
+  @Param('userId') userId: string,
+  @CurrentUser() user: { id: string },
+) {
+  await this.students.assertTeacherHasSubject(user.id, subjectId);
+  return this.students.getStudentStats(subjectId, userId);
+}
 }

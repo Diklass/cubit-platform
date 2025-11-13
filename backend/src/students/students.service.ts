@@ -211,5 +211,55 @@ async getGroupStats(groupId: string) {
     studentsCount,
   };
 }
+
+// === Статистика конкретного ученика ===
+async getStudentStats(subjectId: string, userId: string) {
+  const subject = await this.prisma.subject.findUnique({
+    where: { id: subjectId },
+  });
+  if (!subject) throw new NotFoundException('Subject not found');
+
+  // Все попытки тестов ученика в рамках данного предмета
+  const attempts = await this.prisma.quizAttempt.findMany({
+    where: {
+      userId,
+      quiz: {
+        lesson: {
+          module: { subjectId },
+        },
+      },
+    },
+    include: {
+      quiz: { include: { lesson: true } },
+    },
+    orderBy: { submittedAt: 'desc' },
+  });
+
+  // Расчёт статистики
+  const total = attempts.length;
+  const passed = attempts.filter((a) => a.passed).length;
+  const avgPercent =
+    total > 0
+      ? Math.round(
+          attempts.reduce((s, a) => s + (a.percent ?? 0), 0) / total
+        )
+      : 0;
+
+  return {
+    subjectId,
+    userId,
+    totalAttempts: total,
+    passedAttempts: passed,
+    avgPercent,
+    attempts: attempts.map((a) => ({
+      quizId: a.quizId,
+      lessonTitle: a.quiz.lesson.title,
+      score: a.score,
+      percent: a.percent,
+      passed: a.passed,
+      submittedAt: a.submittedAt,
+    })),
+  };
+}
   
 }

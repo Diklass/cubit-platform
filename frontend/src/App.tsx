@@ -20,6 +20,7 @@ import LessonEditorPage from "./pages/lessons/LessonEditorPage";
 import StudentsPage from "./pages/students/StudentsPage";
 import SubjectGroupsPage from "./pages/students/SubjectGroupsPage";
 import GroupStudentsPage from "./pages/students/GroupStudentsPage";
+import StudentStatsPage from "./pages/students/StudentStatsPage";
 
 function App() {
   return (
@@ -186,6 +187,19 @@ function App() {
       <RoleRoute allowRoles={["ADMIN", "TEACHER"]}>
         <Layout>
           <GroupStudentsPage />
+        </Layout>
+      </RoleRoute>
+    </PrivateRoute>
+  }
+/>
+
+<Route
+  path="/students/:subjectId/student/:userId"
+  element={
+    <PrivateRoute>
+      <RoleRoute allowRoles={["TEACHER", "ADMIN"]}>
+        <Layout>
+          <StudentStatsPage />
         </Layout>
       </RoleRoute>
     </PrivateRoute>

@@ -1,16 +1,18 @@
+//src/pages/students/StudentsPage.tsx
 import { useEffect, useState } from 'react';
-import { useStudentsApi } from './hooks/useStudentsApi';
+import api from '../../api'; // важно: обычный API, а не studentsApi!
 import { Card, CardContent, Typography, Grid, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 export default function StudentsPage() {
-  const api = useStudentsApi();
   const navigate = useNavigate();
   const [subjects, setSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getSubjects().then(setSubjects).finally(() => setLoading(false));
+    api.get('/subjects')
+      .then(res => setSubjects(res.data))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <CircularProgress sx={{ mt: 4 }} />;
@@ -31,7 +33,7 @@ export default function StudentsPage() {
               <CardContent>
                 <Typography variant="h6">{s.title}</Typography>
                 <Typography color="text.secondary" fontSize="0.875rem">
-                  Обновлено: {new Date(s.updatedAt).toLocaleDateString()}
+                  {s.moduleCount} модулей • {s.lessonCount} уроков
                 </Typography>
               </CardContent>
             </Card>

@@ -1,3 +1,4 @@
+//backend/src/subjects/subjects.controller.ts
 import { Controller, Get, Param, Post, Body, Delete } from '@nestjs/common';
 import { SubjectsService } from './subjects.service';
 import { CurrentUser } from '../auth/current-user.decorator';

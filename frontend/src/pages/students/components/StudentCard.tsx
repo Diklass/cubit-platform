@@ -1,3 +1,4 @@
+//src/pages/students/components/StudentCard.tsx
 import { useState } from "react";
 import {
   Card,
@@ -12,22 +13,30 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { motion } from "framer-motion";
 import { useStudentsApi } from "../hooks/useStudentsApi";
+import { useNavigate } from "react-router-dom";
 
 interface StudentCardProps {
   subjectId: string;
-  student: any;
+  student: any; // subjectStudent
   onRemoved?: () => void;
 }
 
 export function StudentCard({ subjectId, student, onRemoved }: StudentCardProps) {
   const api = useStudentsApi();
+  const navigate = useNavigate();
+
   const [isRemoving, setIsRemoving] = useState(false);
 
-  const handleRemove = async () => {
+  const handleRemove = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // ❗ чтобы клик по кнопке не открывал статистику
     if (!confirm(`Удалить ${student.user.email} из группы?`)) return;
     setIsRemoving(true);
     await api.removeStudent(subjectId, student.id);
     onRemoved?.();
+  };
+
+  const goToStats = () => {
+    navigate(`/students/${subjectId}/student/${student.userId}`);
   };
 
   return (
@@ -39,12 +48,20 @@ export function StudentCard({ subjectId, student, onRemoved }: StudentCardProps)
       transition={{ type: "spring", stiffness: 300, damping: 25 }}
     >
       <Card
+        onClick={goToStats}
         sx={{
           position: "relative",
-          overflow: "hidden",
           borderRadius: 2,
+          overflow: "hidden",
+          cursor: "pointer",
           transition: "all 0.25s ease",
-          "&:hover": { boxShadow: 6 },
+          "&:hover": {
+            boxShadow: 8,
+            transform: "translateY(-2px)",
+          },
+          "&:active": {
+            transform: "scale(0.98)",
+          },
         }}
       >
         <CardContent>
@@ -58,12 +75,18 @@ export function StudentCard({ subjectId, student, onRemoved }: StudentCardProps)
             </Box>
 
             <Box display="flex" alignItems="center" gap={0.5}>
-              <Tooltip title="Посмотреть прогресс (скоро)">
-                <span>
-                  <IconButton size="small" color="primary" disabled>
-                    <InfoOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </span>
+              {/* Кнопка "инфо" теперь активна */}
+              <Tooltip title="Статистика ученика">
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={(e: { stopPropagation: () => void; }) => {
+                    e.stopPropagation();
+                    goToStats();
+                  }}
+                >
+                  <InfoOutlinedIcon fontSize="small" />
+                </IconButton>
               </Tooltip>
 
               <Tooltip title="Удалить учащегося">

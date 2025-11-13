@@ -26,5 +26,8 @@ export function useStudentsApi() {
   api.get(`/students/${subjectId}/groups/${groupId}/stats`).then((r) => r.data),
     getSubjectStats: (subjectId: string) =>
   api.get(`/students/${subjectId}/stats`).then((r) => r.data),
+    getStudentStats: (subjectId: string, userId: string) =>
+  api.get(`/students/${subjectId}/student/${userId}/stats`).then((r) => r.data),
+
   };
 }
